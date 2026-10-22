@@ -54,6 +54,9 @@
         <StartProgram>C:\Program Files\Autodesk\Revit $(RevitVersion)\Revit.exe</StartProgram>
         <StartArguments>/language ENG</StartArguments>
     </PropertyGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+        <Reference Include="System.Security"/>
+    </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.CSharp" Version="4.7.0"/>
         <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitVersion).*"/>
@@ -68,6 +71,10 @@
     <ItemGroup>
         <Resource Include="Core\Ressources\settings-16.png"/>
         <Resource Include="Core\Ressources\settings-32.png"/>
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="..\Pic\AI 助手.png" LogicalName="Sinotech.Mcp.Images.AiAssistant.png"/>
+        <EmbeddedResource Include="..\Pic\原圖\AI 助手(原圖).png" LogicalName="Sinotech.Mcp.Images.AiAssistant.Original.png"/>
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>

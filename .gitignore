@@ -387,3 +387,7 @@ FodyWeavers.xsd
 .idea/
 *.sln.iml
 dist/
+
+# Sinotech MCP server build output / local data
+server/build/
+server/revit-data.db

@@ -2,6 +2,7 @@
 using Autodesk.Revit.UI;
 using System.Reflection;
 using System.Windows.Media.Imaging;
+using revit_mcp_plugin.Chat;
 
 
 
@@ -9,9 +10,15 @@ namespace revit_mcp_plugin.Core
 {
     public class Application : IExternalApplication
     {
+        private ChatDockablePane chat;
+
         public Result OnStartup(UIControlledApplication application)
         {
-            RibbonPanel mcpPanel = application.CreateRibbonPanel("Sinotech MCP");
+            chat = new ChatDockablePane();
+            application.RegisterDockablePane(ChatDockablePane.Id, "中興 AI 助手", chat);
+
+            RibbonPanel mcpPanel = RibbonUi.GetOrCreatePanel(application);
+            RibbonUi.AddAiAssistantButton(mcpPanel);
 
             PushButtonData pushButtonData = new PushButtonData("ID_EXCMD_TOGGLE_REVIT_MCP", "Sinotech MCP\r\n Switch",
                 Assembly.GetExecutingAssembly().Location, "revit_mcp_plugin.Core.MCPServiceConnection");
@@ -41,6 +48,7 @@ namespace revit_mcp_plugin.Core
             }
             catch { }
 
+            chat?.Panel.Dispose();
             return Result.Succeeded;
         }
     }
