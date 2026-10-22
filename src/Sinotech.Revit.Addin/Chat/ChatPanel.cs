@@ -26,6 +26,7 @@ namespace revit_mcp_plugin.Chat
         private readonly StackPanel messages = new StackPanel();
         private readonly ScrollViewer scroll;
         private readonly StackPanel approval = new StackPanel { Visibility = Visibility.Collapsed, Background = new SolidColorBrush(Color.FromRgb(255, 247, 222)), Margin = new Thickness(0, 6, 0, 6) };
+        private readonly WrapPanel approvalActions = new WrapPanel { Visibility = Visibility.Collapsed, Background = new SolidColorBrush(Color.FromRgb(255, 247, 222)), Margin = new Thickness(0, 0, 0, 6) };
         private readonly Button connect = Button("連線／取得模型");
         private readonly Button login = Button("登入 Codex");
         private readonly Button reopenLogin = Button("開啟 Codex 登入頁");
@@ -52,7 +53,7 @@ namespace revit_mcp_plugin.Chat
         private bool disposed;
         private string Provider => new[] { "codex", "claude", "gemini" }[Math.Max(0, provider.SelectedIndex)];
         private static Button Button(string caption) => new Button { Content = caption, Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 4), MinHeight = 30 };
-        private static TextBlock Label(string text) => new TextBlock { Text = text, Margin = new Thickness(0, 6, 0, 4), Foreground = Brushes.DimGray };
+        private static TextBlock Label(string text) => new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4), Foreground = Brushes.DimGray };
 
         public ChatPanel() : this(OpenUrl) { }
         internal ChatPanel(Action<string> launchUrl)
@@ -61,14 +62,14 @@ namespace revit_mcp_plugin.Chat
             progressTimer.Tick += (_, __) => { if (progressPhase != null) UpdateAnswerProgress(progressPhase); };
             Background = new SolidColorBrush(Color.FromRgb(246, 248, 251));
             FontFamily = new FontFamily("Microsoft JhengHei UI"); FontSize = 13;
-            MinWidth = 300;
             var root = new Grid { Margin = new Thickness(12) };
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Content = root;
-            var header = new StackPanel(); root.Children.Add(header);
+            // Settings, history and confirmation details share a bounded viewport.
+            // Auto-sized settings/details must never push actions below the pane.
+            var body = new StackPanel();
+            var header = new StackPanel(); body.Children.Add(header);
             header.Children.Add(new TextBlock { Text = "中興 AI 助手", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(25, 56, 86)), Margin = new Thickness(0, 0, 0, 8) });
             provider.Items.Add("Codex · ChatGPT 登入"); provider.Items.Add("Claude · API Key"); provider.Items.Add("Gemini · API Key");
             header.Children.Add(provider);
@@ -87,10 +88,16 @@ namespace revit_mcp_plugin.Chat
                 try { if (loginUrl != null) this.launchUrl(loginUrl); }
                 catch (Exception ex) { status.Text = ex.Message; }
             };
-            scroll = new ScrollViewer { Content = messages, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Margin = new Thickness(0, 8, 0, 8) };
-            Grid.SetRow(scroll, 1); root.Children.Add(scroll);
-            Grid.SetRow(approval, 2); root.Children.Add(approval);
-            var footer = new StackPanel(); Grid.SetRow(footer, 3); root.Children.Add(footer);
+            messages.Margin = new Thickness(0, 8, 0, 8);
+            body.Children.Add(messages); body.Children.Add(approval);
+            scroll = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            root.Children.Add(scroll);
+            var footer = new StackPanel();
+            footer.Children.Add(approvalActions);
+            // On extremely short panes the footer itself remains scrollable.
+            var footerScroll = new ScrollViewer { Content = footer, MaxHeight = 280, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            Grid.SetRow(footerScroll, 1); root.Children.Add(footerScroll);
+            SizeChanged += (_, e) => footerScroll.MaxHeight = Math.Max(0, (e.NewSize.Height - 24) / 2);
             footer.Children.Add(input);
             var sendButtons = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) }; sendButtons.Children.Add(send); sendButtons.Children.Add(stop); footer.Children.Add(sendButtons);
             footer.Children.Add(new TextBlock { Text = "Enter 送出 · Shift+Enter 換行｜修改模型前會顯示參數供確認，完成後請自行儲存模型。", FontSize = 11, TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray });
@@ -263,7 +270,7 @@ namespace revit_mcp_plugin.Chat
                 case "toolStarted": status.Text = "工具執行中：" + message.Value<string>("name"); UpdateAnswerProgress(status.Text); break;
                 case "toolCompleted": AddToolResult(message); break;
                 case "approval": ShowApproval(message); break;
-                case "approvalClosed": if (message.Value<string>("id") == approvalId) { approval.Visibility = Visibility.Collapsed; approvalId = null; } break;
+                case "approvalClosed": if (message.Value<string>("id") == approvalId) HideApproval(); break;
                 case "fatal": case "disconnected":
                     ClearLoginLink();
                     status.Text = message.Value<string>("text"); connectedProvider = null;
@@ -301,6 +308,7 @@ namespace revit_mcp_plugin.Chat
         {
             approvalId = message.Value<string>("id");
             approval.Children.Clear();
+            approvalActions.Children.Clear();
             var preview = message["preview"];
             approval.Children.Add(new TextBlock { Text = "確認執行操作", FontWeight = FontWeights.Bold, Margin = new Thickness(8) });
             approval.Children.Add(new TextBlock { Text = $"工具：{preview?["tool"]}\n{preview?["note"]}", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8) });
@@ -309,11 +317,17 @@ namespace revit_mcp_plugin.Chat
             var actions = new WrapPanel { Margin = new Thickness(8, 0, 8, 4) };
             var accept = Button("執行此操作"); var decline = Button("取消");
             var id = approvalId;
-            accept.Click += async (_, __) => await Run(async () => { approval.Visibility = Visibility.Collapsed; await client.Request("approve", new { id, accepted = true }); });
-            decline.Click += async (_, __) => await Run(async () => { approval.Visibility = Visibility.Collapsed; await client.Request("approve", new { id, accepted = false }); });
-            actions.Children.Add(accept); actions.Children.Add(decline); approval.Children.Add(actions); approval.Visibility = Visibility.Visible;
+            accept.Click += async (_, __) => await Run(async () => { HideApproval(); await client.Request("approve", new { id, accepted = true }); });
+            decline.Click += async (_, __) => await Run(async () => { HideApproval(); await client.Request("approve", new { id, accepted = false }); });
+            actions.Children.Add(accept); actions.Children.Add(decline); approvalActions.Children.Add(actions);
+            approval.Visibility = Visibility.Visible; approvalActions.Visibility = Visibility.Visible;
             status.Text = "等待你確認操作參數。";
             UpdateAnswerProgress(status.Text);
+            scroll.ScrollToEnd();
+        }
+        private void HideApproval()
+        {
+            approval.Visibility = Visibility.Collapsed; approvalActions.Visibility = Visibility.Collapsed; approvalId = null;
         }
         private TextBox AddMessage(string role, string text)
         {

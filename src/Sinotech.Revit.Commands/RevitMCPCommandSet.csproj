@@ -67,14 +67,14 @@
 
     <Target Name="DeployCommandSet" AfterTargets="Build">
         <PropertyGroup>
-            <PluginAddInRoot>$(ProjectDir)..\plugin\bin\AddIn $(RevitVersion) $(Configuration)\revit_mcp_plugin\</PluginAddInRoot>
+            <PluginAddInRoot>$(ProjectDir)..\Sinotech.Revit.Addin\bin\AddIn $(RevitVersion) $(Configuration)\revit_mcp_plugin\</PluginAddInRoot>
             <CommandSetPluginDir>$(PluginAddInRoot)Commands\RevitMCPCommandSet\</CommandSetPluginDir>
             <RevitAddinsDir>$(AppData)\Autodesk\Revit\Addins\$(RevitVersion)\revit_mcp_plugin\Commands\RevitMCPCommandSet\</RevitAddinsDir>
         </PropertyGroup>
 
         <ItemGroup>
             <CommandSetBinaries Include="$(TargetDir)*.dll;$(TargetDir)*.pdb" />
-            <CommandJsonFile Include="$(ProjectDir)..\command.json" />
+            <CommandJsonFile Include="$(ProjectDir)..\..\command.json" />
         </ItemGroup>
 
         <!-- Always: Copy to plugin's AddIn output for release packaging -->

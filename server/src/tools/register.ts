@@ -8,8 +8,13 @@ export async function registerTools(server: McpServer) {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
-  // 读取tools目录下的所有文件
-  const files = fs.readdirSync(__dirname);
+  // 读取tools目录下的所有文件，以及 extensions/（中興自行開發工具）子資料夾
+  const files = [
+    ...fs.readdirSync(__dirname),
+    ...(fs.existsSync(path.join(__dirname, "extensions"))
+      ? fs.readdirSync(path.join(__dirname, "extensions")).map((file) => `extensions/${file}`)
+      : []),
+  ];
 
   // 过滤出.ts或.js文件，但排除index文件和register文件
   const toolFiles = files.filter(
@@ -18,7 +23,8 @@ export async function registerTools(server: McpServer) {
       file !== "index.ts" &&
       file !== "index.js" &&
       file !== "register.ts" &&
-      file !== "register.js"
+      file !== "register.js" &&
+      !file.endsWith(".d.ts")
   );
 
   // 动态导入并注册每个工具

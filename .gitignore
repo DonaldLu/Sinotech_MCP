@@ -391,3 +391,11 @@ dist/
 # Sinotech MCP server build output / local data
 server/build/
 server/revit-data.db
+
+# Sinotech_MCP_Setup generated output
+/Sinotech_MCP_Setup/payloads/
+/Sinotech_MCP_Setup/generated/
+/Sinotech_MCP_Setup/registration/
+/Sinotech_MCP_Setup/Release/
+/Sinotech_MCP_Setup/Debug/
+/dist/

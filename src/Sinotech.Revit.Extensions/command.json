@@ -1,0 +1,22 @@
+{
+  "name": "SinotechExtensions",
+  "description": "中興自行開發命令集（使用須經開發者授權）",
+  "developer": {
+    "name": "Donald",
+    "email": "donaldlu@mail.sinotech.com.tw",
+    "website": "",
+    "organization": "中興工程顧問股份有限公司"
+  },
+  "commands": [
+    {
+      "commandName": "get_cad_layers",
+      "description": "自動建牆：列出目前視圖連結 CAD 的圖層、基本牆類型與樓層",
+      "assemblyPath": "SinotechExtensions.dll"
+    },
+    {
+      "commandName": "create_walls_from_cad",
+      "description": "自動建牆：依所選 CAD 圖層的封閉雙線區域求中心線建牆",
+      "assemblyPath": "SinotechExtensions.dll"
+    }
+  ]
+}
