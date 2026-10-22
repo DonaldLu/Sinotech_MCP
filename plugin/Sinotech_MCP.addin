@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Sinotech_MCP</Name>
+    <Assembly>revit_mcp_plugin/RevitMCPPlugin.dll</Assembly>
+    <FullClassName>revit_mcp_plugin.Core.Application</FullClassName>
+    <ClientId>A4D44EAC-098F-4A68-AD4E-1AD6DCF8CD26</ClientId>
+    <VendorId>Sinotech</VendorId>
+    <VendorDescription>中興工程顧問股份有限公司 Sinotech Engineering Consultants</VendorDescription>
+  </AddIn>
+</RevitAddIns>

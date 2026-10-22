@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36401.2 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "Sinotech_MCP_Setup", "Sinotech_MCP_Setup.vdproj", "{F4DBCB67-D20F-3898-7724-C41E420D5FE1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Default = Debug|Default
+		Release|Default = Release|Default
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F4DBCB67-D20F-3898-7724-C41E420D5FE1}.Debug|Default.ActiveCfg = Debug
+		{F4DBCB67-D20F-3898-7724-C41E420D5FE1}.Debug|Default.Build.0 = Debug
+		{F4DBCB67-D20F-3898-7724-C41E420D5FE1}.Release|Default.ActiveCfg = Release
+		{F4DBCB67-D20F-3898-7724-C41E420D5FE1}.Release|Default.Build.0 = Release
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FE2AB660-FA85-400B-8F13-936A98F0F0BB}
+	EndGlobalSection
+EndGlobal

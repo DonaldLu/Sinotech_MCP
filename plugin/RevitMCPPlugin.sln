@@ -1,0 +1,61 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36401.2 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RevitMCPPlugin", "RevitMCPPlugin.csproj", "{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug R20|Any CPU = Debug R20|Any CPU
+		Debug R21|Any CPU = Debug R21|Any CPU
+		Debug R22|Any CPU = Debug R22|Any CPU
+		Debug R23|Any CPU = Debug R23|Any CPU
+		Debug R24|Any CPU = Debug R24|Any CPU
+		Debug R25|Any CPU = Debug R25|Any CPU
+		Debug R26|Any CPU = Debug R26|Any CPU
+		Release R20|Any CPU = Release R20|Any CPU
+		Release R21|Any CPU = Release R21|Any CPU
+		Release R22|Any CPU = Release R22|Any CPU
+		Release R23|Any CPU = Release R23|Any CPU
+		Release R24|Any CPU = Release R24|Any CPU
+		Release R25|Any CPU = Release R25|Any CPU
+		Release R26|Any CPU = Release R26|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R20|Any CPU.ActiveCfg = Debug R20|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R20|Any CPU.Build.0 = Debug R20|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R21|Any CPU.ActiveCfg = Debug R21|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R21|Any CPU.Build.0 = Debug R21|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R22|Any CPU.ActiveCfg = Debug R22|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R22|Any CPU.Build.0 = Debug R22|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R23|Any CPU.ActiveCfg = Debug R23|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R23|Any CPU.Build.0 = Debug R23|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R24|Any CPU.ActiveCfg = Debug R24|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R24|Any CPU.Build.0 = Debug R24|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R25|Any CPU.ActiveCfg = Debug R25|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R25|Any CPU.Build.0 = Debug R25|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R26|Any CPU.ActiveCfg = Debug R26|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Debug R26|Any CPU.Build.0 = Debug R26|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R20|Any CPU.ActiveCfg = Release R20|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R20|Any CPU.Build.0 = Release R20|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R21|Any CPU.ActiveCfg = Release R21|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R21|Any CPU.Build.0 = Release R21|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R22|Any CPU.ActiveCfg = Release R22|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R22|Any CPU.Build.0 = Release R22|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R23|Any CPU.ActiveCfg = Release R23|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R23|Any CPU.Build.0 = Release R23|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R24|Any CPU.ActiveCfg = Release R24|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R24|Any CPU.Build.0 = Release R24|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R25|Any CPU.ActiveCfg = Release R25|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R25|Any CPU.Build.0 = Release R25|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R26|Any CPU.ActiveCfg = Release R26|Any CPU
+		{545A5D1B-5F44-B308-BE81-A6FE2E0436CF}.Release R26|Any CPU.Build.0 = Release R26|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FED1BF0A-4544-4F1F-B764-B796FCABE6DC}
+	EndGlobalSection
+EndGlobal
