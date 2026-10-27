@@ -2,7 +2,7 @@
 
 > 使用前須經開發者授權，詳見 [LICENSE.md](LICENSE.md)。
 
-這是 Sinotech_MCP 的**獨立命令集**，和原本衍生自開源專案的 `RevitMCPCommandSet` 分開編譯、分開部署。在 Revit「Settings」中會以 `SinotechExtensions` 獨立列出，並顯示開發者資訊。
+這是 Sinotech_MCP 的**獨立命令集**，和原本衍生自開源專案的 `RevitMCPCommandSet` 分開編譯、分開部署。安裝後 Revit 啟動時即自動載入，不需要另外啟用。
 
 ## 功能一覽
 
@@ -30,7 +30,7 @@
 ```
 src/Sinotech.Revit.Extensions/
 ├─ Sinotech.Revit.Extensions.csproj   建置後部署到 revit_mcp_plugin\Commands\SinotechExtensions\
-├─ command.json                       命令清單與開發者資訊（Settings 讀取）
+├─ command.json                       命令清單與開發者資訊（Revit 啟動時讀取）
 ├─ LICENSE.md                         授權聲明
 ├─ Common/                            共用：回傳格式、ElementId 跨版本相容
 └─ AutoBuild/                         自動建牆

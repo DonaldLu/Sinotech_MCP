@@ -20,7 +20,7 @@ export async function withRevitConnection<T>(
   });
   await previousMutex;
 
-  const revitClient = new RevitClientConnection("localhost", 8080);
+  const revitClient = new RevitClientConnection("127.0.0.1", 8080); // Revit 端只監聽本機 IPv4，避免 localhost 解析成 ::1 而連不到
 
   try {
     // 连接到Revit客户端

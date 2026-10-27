@@ -9,7 +9,7 @@
         <Company>中興工程顧問股份有限公司</Company>
         <Product>Sinotech_MCP 自行開發命令集</Product>
         <Copyright>Copyright © 2026 Donald（donaldlu@mail.sinotech.com.tw）。保留所有權利，未經開發者書面授權不得使用、複製或散布。</Copyright>
-        <Version>1.1.0</Version>
+        <Version>1.1.4</Version>
         <!-- 與原命令集相同：把 RevitMCPSDK、Newtonsoft.Json 一併放在命令集資料夾 -->
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <Configurations>Debug R20;Debug R21;Debug R22;Debug R23;Debug R24;Debug R25;Debug R26</Configurations>

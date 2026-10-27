@@ -17,9 +17,10 @@ namespace revit_mcp_plugin.Chat
     public sealed class ChatPanel : UserControl, IDisposable
     {
         private readonly ComboBox provider = new ComboBox { MinHeight = 30 };
-        private readonly ComboBox model = new ComboBox { IsEditable = true, MinHeight = 30 };
+        // 模型與 codex.exe 只能從下拉選單選擇，不可手動輸入，避免輸入錯誤
+        private readonly ComboBox model = new ComboBox { IsEditable = false, MinHeight = 30 };
         private readonly PasswordBox apiKey = new PasswordBox { MinHeight = 30 };
-        private readonly TextBox codexPath = new TextBox { MinHeight = 28 };
+        private readonly ComboBox codexPath = new ComboBox { IsEditable = false, MinHeight = 28 };
         private readonly TextBlock status = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray };
         private readonly TextBlock authHint = new TextBlock { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox input = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 72, MaxHeight = 160, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -52,6 +53,8 @@ namespace revit_mcp_plugin.Chat
         private bool changing;
         private bool disposed;
         private string Provider => new[] { "codex", "claude", "gemini" }[Math.Max(0, provider.SelectedIndex)];
+        private string SelectedModel => model.SelectedItem as string ?? "";
+        private string CodexPath => codexPath.SelectedItem as string ?? "";
         private static Button Button(string caption) => new Button { Content = caption, Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 4), MinHeight = 30 };
         private static TextBlock Label(string text) => new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4), Foreground = Brushes.DimGray };
 
@@ -74,9 +77,9 @@ namespace revit_mcp_plugin.Chat
             provider.Items.Add("Codex · ChatGPT 登入"); provider.Items.Add("Claude · API Key"); provider.Items.Add("Gemini · API Key");
             header.Children.Add(provider);
             var settings = new StackPanel();
-            settings.Children.Add(Label("模型（連線後取得，也可輸入模型 ID）")); settings.Children.Add(model);
+            settings.Children.Add(Label("模型（連線後取得，請從清單選擇）")); settings.Children.Add(model);
             settings.Children.Add(Label("Claude／Gemini API Key（本機加密儲存）")); settings.Children.Add(apiKey);
-            settings.Children.Add(Label("Codex 執行檔（codex.exe）")); settings.Children.Add(codexPath);
+            settings.Children.Add(Label("Codex 執行檔（codex.exe，自動偵測）")); settings.Children.Add(codexPath);
             header.Children.Add(new Expander { Header = "連線設定", IsExpanded = true, Content = settings, Margin = new Thickness(0, 6, 0, 6) });
             var controls = new WrapPanel(); controls.Children.Add(connect); controls.Children.Add(login); controls.Children.Add(logout); controls.Children.Add(reset); header.Children.Add(controls);
             header.Children.Add(authHint); header.Children.Add(status);
@@ -122,9 +125,11 @@ namespace revit_mcp_plugin.Chat
             {
                 launch = ChatLaunchSettings.Load();
                 preferences = ChatPreferences.Load(launch.StateDirectory);
-                codexPath.Text = launch.FindCodex(preferences.CodexExecutable);
+                foreach (var path in launch.FindCodexCandidates(preferences.CodexExecutable)) codexPath.Items.Add(path);
+                if (codexPath.Items.Count > 0) codexPath.SelectedIndex = 0;
                 provider.SelectedIndex = Math.Max(0, Array.IndexOf(new[] { "codex", "claude", "gemini" }, preferences.Provider));
                 status.Text = "請連線並選擇模型。Codex 首次使用須另完成官方登入。";
+                if (codexPath.Items.Count == 0) status.Text = "找不到 codex.exe：使用 Codex 請先安裝 Codex，再重新開啟 AI助手面板；或改選 Claude／Gemini。";
             }
             catch (Exception ex) { status.Text = ex.Message; connect.IsEnabled = false; login.IsEnabled = false; }
             SetBusy(false);
@@ -139,8 +144,7 @@ namespace revit_mcp_plugin.Chat
                 if (connectedProvider != null) { AddMessage("系統", "已切換 AI 引擎；下次送出會開始新的對話。"); connectedProvider = null; }
                 preferences.Provider = Provider;
                 apiKey.Password = preferences.Key(Provider);
-                model.Items.Clear(); model.Text = preferences.Models.TryGetValue(Provider, out var saved) ? saved : "";
-                model.IsEditable = Provider == "codex";
+                model.Items.Clear(); SetModel(preferences.Models.TryGetValue(Provider, out var saved) ? saved : "");
                 apiKey.IsEnabled = Provider != "codex";
                 codexPath.IsEnabled = Provider == "codex";
                 login.Content = Provider == "codex" ? "登入 Codex" : "取得 API Key";
@@ -151,10 +155,18 @@ namespace revit_mcp_plugin.Chat
         }
         private void SavePreferences()
         {
-            preferences.Provider = Provider; preferences.CodexExecutable = codexPath.Text.Trim();
-            preferences.Models[Provider] = model.Text.Trim();
+            preferences.Provider = Provider; preferences.CodexExecutable = CodexPath;
+            preferences.Models[Provider] = SelectedModel;
             if (Provider != "codex") preferences.SetKey(Provider, apiKey.Password);
             preferences.Save(launch.StateDirectory);
+        }
+        // 下拉選單不可編輯：清單中沒有的模型（例如上次儲存的）先加入清單再選取
+        // The list is read-only, so add a missing (e.g. previously saved) model before selecting it.
+        private void SetModel(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) { model.SelectedIndex = -1; return; }
+            if (!model.Items.Contains(id)) model.Items.Add(id);
+            model.SelectedItem = id;
         }
         private async Task EnsureClient()
         {
@@ -180,11 +192,11 @@ namespace revit_mcp_plugin.Chat
             {
                 SavePreferences(); await EnsureClient();
                 status.Text = "連線中…";
-                var wanted = model.Text.Trim();
+                var wanted = SelectedModel;
                 var response = await Configure(wanted);
                 model.Items.Clear();
                 foreach (var entry in response["models"] ?? new JArray()) model.Items.Add(entry.Value<string>("id"));
-                model.Text = response.Value<string>("selectedModel") ?? wanted;
+                SetModel(response.Value<string>("selectedModel") ?? wanted);
                 SavePreferences();
                 status.Text = response.Value<string>("status") + " 請選擇模型後送出。";
             }
@@ -193,10 +205,10 @@ namespace revit_mcp_plugin.Chat
         private async Task<JToken> Configure(string selectedModel)
         {
             ClearLoginLink(); // Reconfiguration replaces the old Codex login session.
-            if (Provider == "codex" && !File.Exists(codexPath.Text.Trim())) throw new FileNotFoundException("找不到 codex.exe，請在連線設定指定本機 Codex 執行檔。");
-            var response = await client.Request("configure", new { provider = Provider, model = selectedModel, apiKey = Provider == "codex" ? "" : apiKey.Password, codexExecutable = codexPath.Text.Trim() }, 90000);
+            if (Provider == "codex" && !File.Exists(CodexPath)) throw new FileNotFoundException("找不到 codex.exe，請先安裝 Codex，再重新開啟 AI助手面板。");
+            var response = await client.Request("configure", new { provider = Provider, model = selectedModel, apiKey = Provider == "codex" ? "" : apiKey.Password, codexExecutable = CodexPath }, 90000);
             connectedProvider = Provider; connectedModel = response.Value<string>("selectedModel") ?? selectedModel;
-            model.Text = connectedModel;
+            SetModel(connectedModel);
             SavePreferences();
             return response;
         }
@@ -216,14 +228,14 @@ namespace revit_mcp_plugin.Chat
         private async Task Send()
         {
             if (busy || launch == null || string.IsNullOrWhiteSpace(input.Text)) return;
-            if (string.IsNullOrWhiteSpace(model.Text)) { status.Text = "請先連線並選擇模型。"; return; }
-            if (!SocketService.Instance.IsRunning) { status.Text = "Revit MCP 服務未啟動，請先按功能區「AI助手」按鈕（或 Switch）開啟服務。"; return; }
+            if (string.IsNullOrWhiteSpace(SelectedModel)) { status.Text = "請先連線並選擇模型。"; return; }
+            if (!SocketService.Instance.IsRunning) { status.Text = "Revit MCP 服務未啟動：請按功能區「AI助手」關閉面板後再按一次重新開啟；若仍失敗，可能是埠號 8080 被其他程式（或另一個 Revit）佔用，請查看 Logs。"; return; }
             var text = input.Text.Trim();
             SetBusy(true);
             try
             {
                 SavePreferences(); await EnsureClient();
-                if (connectedProvider != Provider || connectedModel != model.Text.Trim()) await Configure(model.Text.Trim());
+                if (connectedProvider != Provider || connectedModel != SelectedModel) await Configure(SelectedModel);
                 AddMessage("你", text); input.Clear(); currentAnswer = AddMessage("AI", "等待 AI 回應…尚未收到文字或工具指令。");
                 answerPending = true;
                 turnWatch.Restart(); progressTimer.Start();

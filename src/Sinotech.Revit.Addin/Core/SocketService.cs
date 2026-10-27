@@ -44,6 +44,10 @@ namespace revit_mcp_plugin.Core
 
         public bool IsRunning => _isRunning;
 
+        // 命令只在 Revit 執行期間載入一次；之後開關 AI助手 只會啟動／停止監聽
+        // Commands are loaded once per Revit session; opening/closing the AI assistant only starts/stops listening.
+        public bool IsInitialized { get; private set; }
+
         public int Port
         {
             get => _port;
@@ -54,6 +58,7 @@ namespace revit_mcp_plugin.Core
         // Initialization.
         public void Initialize(UIApplication uiApp)
         {
+            if (IsInitialized) return;
             _uiApp = uiApp;
 
             // 初始化事件管理器
@@ -92,6 +97,7 @@ namespace revit_mcp_plugin.Core
                 _commandRegistry, _logger, configManager, _uiApp);
             commandManager.LoadCommands();
 
+            IsInitialized = true;
             _logger.Info($"Socket service initialized on port {_port}");
         }
 
@@ -102,7 +108,9 @@ namespace revit_mcp_plugin.Core
             try
             {
                 _isRunning = true;
-                _listener = new TcpListener(IPAddress.Any, _port);
+                // 只接受本機連線（MCP Server 由本機 127.0.0.1 連入），區網其他電腦無法連到 Revit
+                // Loopback only: the MCP server connects from 127.0.0.1; other machines cannot reach Revit.
+                _listener = new TcpListener(IPAddress.Loopback, _port);
                 _listener.Start();
 
                 _listenerThread = new Thread(ListenForClients)
@@ -111,9 +119,10 @@ namespace revit_mcp_plugin.Core
                 };
                 _listenerThread.Start();              
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 _isRunning = false;
+                _logger.Error("Socket 服務啟動失敗（埠號 {0} 可能已被其他程式使用）: {1}\nSocket service failed to start on port {0}: {1}", _port, ex.Message);
             }
         }
 

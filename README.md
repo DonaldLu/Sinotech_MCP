@@ -3,12 +3,12 @@
 讓 Claude 等 AI 助手透過 Model Context Protocol (MCP) 操作 Autodesk Revit（Revit 2020–2026）。
 
 ```
-MCP Client ⇄(stdio)⇄ server/ (TypeScript) ⇄(WebSocket)⇄ src/Sinotech.Revit.Addin → src/Sinotech.Revit.Commands → Revit API
+MCP Client ⇄(stdio)⇄ server/ (TypeScript) ⇄(TCP 127.0.0.1:8080)⇄ src/Sinotech.Revit.Addin → src/Sinotech.Revit.Commands → Revit API
 ```
 
 | 目錄 | 說明 |
 | --- | --- |
-| `server/` | MCP Server（Node.js 20+），將工具呼叫轉為 WebSocket 訊息 |
+| `server/` | MCP Server（Node.js 20+），將工具呼叫轉為 JSON-RPC，經本機 TCP 送到 Revit |
 | `Sinotech.MCP.sln` | Visual Studio 解決方案（Add-in、Commands、Setup） |
 | `src/Sinotech.Revit.Addin/` | Revit Add-in（`Sinotech_MCP.addin`），功能區「中興MCP」含 AI助手、開關與設定 |
 | `src/Sinotech.Revit.Commands/` | 實際執行 Revit API 的命令集，根目錄 `command.json` 為命令清單 |
@@ -29,7 +29,7 @@ Claude Code 註冊（路徑請依實際調整）：
 claude mcp add sinotech-mcp -- node C:\Prj\Revit\Sinotech_MCP\server\build\index.js
 ```
 
-啟動 Revit → 功能區「Sinotech MCP」→ 於 Settings 勾選要啟用的命令 → 按 Switch 開啟服務。
+啟動 Revit 會自動載入所有已安裝的命令。按功能區「中興MCP → AI助手」開啟面板即啟動 MCP 服務，關閉面板即停止；服務只接受本機連線。使用 Claude Code 等外部 MCP 客戶端時，也需要先開啟 AI助手面板。
 
 ## 自行開發命令集（SinotechExtensions）
 

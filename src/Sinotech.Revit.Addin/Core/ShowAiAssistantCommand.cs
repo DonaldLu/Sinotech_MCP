@@ -12,15 +12,21 @@ namespace revit_mcp_plugin.Core
         {
             try
             {
-                // The chat runtime reaches Revit through the same socket service as the Switch button.
+                // AI助手開啟時啟動 MCP 服務、關閉時停止（面板事件也會處理，這裡再確保一次）
+                // The MCP service runs only while the AI assistant pane is shown.
                 var service = SocketService.Instance;
-                if (!service.IsRunning)
-                {
-                    service.Initialize(commandData.Application);
-                    service.Start();
-                }
+                service.Initialize(commandData.Application);
                 var pane = commandData.Application.GetDockablePane(ChatDockablePane.Id);
-                if (pane.IsShown()) pane.Hide(); else pane.Show();
+                if (pane.IsShown())
+                {
+                    pane.Hide();
+                    service.Stop();
+                }
+                else
+                {
+                    service.Start();
+                    pane.Show();
+                }
                 return Result.Succeeded;
             }
             catch (System.Exception ex)

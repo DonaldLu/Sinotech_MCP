@@ -1,4 +1,4 @@
-param([ValidateSet('2024','2025','2026')][string[]]$RevitVersion=@('2024','2025','2026'))
+﻿param([ValidateSet('2024','2025','2026')][string[]]$RevitVersion=@('2024','2025','2026'))
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $version=(Get-Content (Join-Path $root 'server/package.json') -Raw | ConvertFrom-Json).version
@@ -29,6 +29,12 @@ foreach($year in $RevitVersion){
  $registrationRoot="[AppDataFolder]Autodesk\Revit\Addins\$year"
  if(!($actions | Where-Object {$_.Source -eq 'TARGETDIR' -and $_.Target -eq $payloadRoot})){throw 'Incorrect payload root'}
  if(!($actions | Where-Object {$_.Source -eq 'SINOTECHREGISTERDIR' -and $_.Target -eq $registrationRoot})){throw 'Incorrect registration root'}
+ # 解除安裝清理只能在完整移除時執行，升級移除舊版時不可執行
+ foreach($cleanupAction in @('SINOTECH_CLEAN_APP','SINOTECH_CLEAN_CHAT')){
+  $step=$sequence | Where-Object {$_.Action -eq $cleanupAction}
+  if(!$step -or $step.Condition -notmatch 'REMOVE~="ALL"' -or $step.Condition -notmatch 'NOT UPGRADINGPRODUCTCODE'){throw "Uninstall cleanup missing or unsafe: $cleanupAction"}
+ }
+ if(!(@(Rows 'SELECT `Action`,`Target` FROM `CustomAction`' @('Action','Target')) | Where-Object {$_.Action -eq 'SINOTECH_CLEAN_APP' -and $_.Target.Contains("rmdir /s /q `"[TARGETDIR]$year`"")})){throw 'Uninstall cleanup targets the wrong folder'}
  $directories=@{};foreach($r in (Rows 'SELECT `Directory`,`Directory_Parent`,`DefaultDir` FROM `Directory`' @('Id','Parent','Name'))){$directories[$r.Id]=$r}
  foreach($requiredRoot in @('TARGETDIR','SINOTECHREGISTERDIR')){if(!$directories.ContainsKey($requiredRoot)){throw "Required MSI directory is missing: $requiredRoot"}}
  $components=@{};foreach($r in (Rows 'SELECT `Component`,`Directory_` FROM `Component`' @('Id','Directory'))){$components[$r.Id]=$r.Directory}

@@ -2,74 +2,80 @@
 using RevitMCPSDK.API.Interfaces;
 using revit_mcp_plugin.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace revit_mcp_plugin.Configuration
 {
     public class ConfigurationManager
     {
         private readonly ILogger _logger;
-        private readonly string _configPath;
 
-        public FrameworkConfig Config { get; private set; }
+        public FrameworkConfig Config { get; private set; } = new FrameworkConfig();
 
         public ConfigurationManager(ILogger logger)
         {
             _logger = logger;
-
-            // 配置文件路径
-            // Configuration file path.
-            _configPath = PathManager.GetCommandRegistryFilePath();
         }
 
         /// <summary>
-        /// <para>加载配置</para>
-        /// <para>Load configuration from a JSON file.</para>
+        /// <para>掃描 Commands\*\command.json，啟用所有已安裝命令集的全部命令（不再使用 commandRegistry.json）。</para>
+        /// <para>只要命令的 DLL 存在於對應的 Revit 版本子資料夾，就會載入；新版本增加的命令安裝後即可使用。</para>
+        /// <para>Enable every command of every installed command set whose DLL exists for a Revit version.</para>
         /// </summary>
         public void LoadConfiguration()
         {
+            var commands = new List<CommandConfig>();
             try
             {
-                if (File.Exists(_configPath))
+                foreach (string directory in Directory.GetDirectories(PathManager.GetCommandsDirectoryPath()))
                 {
-                    string json = File.ReadAllText(_configPath);
-                    Config = JsonConvert.DeserializeObject<FrameworkConfig>(json);
-                    _logger.Info("已加载配置文件: {0}\nConfiguration file loaded: {0}", _configPath);
+                    string commandJsonPath = Path.Combine(directory, "command.json");
+                    if (Path.GetFileName(directory).StartsWith(".") || !File.Exists(commandJsonPath))
+                        continue;
+
+                    var commandSet = JsonConvert.DeserializeObject<CommandJson>(File.ReadAllText(commandJsonPath));
+                    if (commandSet?.Commands == null)
+                        continue;
+
+                    var versions = Directory.GetDirectories(directory)
+                        .Select(Path.GetFileName)
+                        .Where(name => int.TryParse(name, out _))
+                        .ToList();
+
+                    foreach (var command in commandSet.Commands)
+                    {
+                        if (string.IsNullOrEmpty(command.AssemblyPath) ||
+                            commands.Any(c => c.CommandName == command.CommandName))
+                            continue;
+
+                        var supported = versions
+                            .Where(v => File.Exists(Path.Combine(directory, v, command.AssemblyPath)))
+                            .ToArray();
+                        if (supported.Length == 0)
+                            continue;
+
+                        commands.Add(new CommandConfig
+                        {
+                            CommandName = command.CommandName,
+                            // 使用資料夾名稱，與 CommandManager 解析相對路徑的方式一致
+                            // Use the folder name, matching how CommandManager resolves relative paths.
+                            AssemblyPath = Path.Combine(Path.GetFileName(directory), "{VERSION}", command.AssemblyPath),
+                            Enabled = true,
+                            Description = command.Description,
+                            SupportedRevitVersions = supported,
+                            Developer = commandSet.Developer ?? new DeveloperInfo()
+                        });
+                    }
                 }
-                else
-                {
-                    _logger.Error("未找到配置文件\nNo configuration file found.");
-                }
+                _logger.Info("已啟用所有已安裝命令，共 {0} 個\nEnabled all installed commands: {0}.", commands.Count);
             }
             catch (Exception ex)
             {
-                _logger.Error("加载配置文件失败: {0}\nFailed to load configuration file: {0}", ex.Message);
+                _logger.Error("讀取已安裝命令失敗: {0}\nFailed to read installed commands: {0}", ex.Message);
             }
-
-            // 记录加载时间
-            // Register load time.
-            _lastConfigLoadTime = DateTime.Now;
+            Config.Commands = commands;
         }
-
-        ///// <summary>
-        ///// <para>重新加载配置</para>
-        ///  <para>Reload configuration.</para>
-        ///// </summary>
-        //public void RefreshConfiguration()
-        //{
-        //    LoadConfiguration();
-        //    _logger.Info("配置已重新加载\nConfiguration has been reloaded.");
-        //}
-
-        //public bool HasConfigChanged()
-        //{
-        //    if (!File.Exists(_configPath))
-        //        return false;
-
-        //    DateTime lastWrite = File.GetLastWriteTime(_configPath);
-        //    return lastWrite > _lastConfigLoadTime;
-        //}
-
-        private DateTime _lastConfigLoadTime;
     }
 }

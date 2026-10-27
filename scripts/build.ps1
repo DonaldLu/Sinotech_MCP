@@ -1,4 +1,4 @@
-# 用法: .\scripts\build.ps1 -Revit 2026 [-Install]
+﻿# 用法: .\scripts\build.ps1 -Revit 2026 [-Install]
 # 建置 src\Sinotech.Revit.Addin + src\Sinotech.Revit.Commands + src\Sinotech.Revit.Extensions（自行開發命令集），輸出至 dist\<版本>\，加上 -Install 時複製到 %AppData%\Autodesk\Revit\Addins\<版本>\
 param(
     [ValidateSet('2020','2021','2022','2023','2024','2025','2026')][string]$Revit = '2026',

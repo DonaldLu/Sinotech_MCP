@@ -70,25 +70,31 @@ namespace revit_mcp_plugin.Chat
             return null;
         }
 
-        public string FindCodex(string preferred)
+        /// <summary>
+        /// 本機所有找得到的 codex.exe（依序：上次選擇、chat.config.json、PATH、Codex 安裝目錄新到舊），供下拉選單選擇
+        /// Every codex.exe found on this machine, in preference order, for the read-only drop-down.
+        /// </summary>
+        public List<string> FindCodexCandidates(string preferred)
         {
-            foreach (var candidate in new[] { preferred, CodexExecutable }) if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate)) return candidate;
+            var found = new List<string>();
+            void Add(string candidate)
+            {
+                if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) return;
+                var full = Path.GetFullPath(candidate);
+                if (!found.Contains(full, StringComparer.OrdinalIgnoreCase)) found.Add(full);
+            }
+            Add(preferred);
+            Add(CodexExecutable);
             foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
             {
-                try
-                {
-                    var candidate = Path.Combine(directory.Trim('"'), "codex.exe");
-                    if (File.Exists(candidate)) return candidate;
-                }
+                try { Add(Path.Combine(directory.Trim('"'), "codex.exe")); }
                 catch (ArgumentException) { /* malformed PATH entry */ }
             }
             var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OpenAI", "Codex", "bin");
             if (Directory.Exists(root))
-            {
-                var found = Directory.GetFiles(root, "codex.exe", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-                if (found != null) return found;
-            }
-            return preferred ?? "";
+                foreach (var file in Directory.GetFiles(root, "codex.exe", SearchOption.AllDirectories).OrderByDescending(File.GetLastWriteTimeUtc))
+                    Add(file);
+            return found;
         }
     }
 
