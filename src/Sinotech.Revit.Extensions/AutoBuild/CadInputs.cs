@@ -76,12 +76,15 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             var axes = new List<Segment>();
             foreach (var import in reader.Lines.Where(l => selected.Contains(l.Layer) && Math.Abs(l.Start.Z - l.End.Z) <= Tolerance).GroupBy(l => l.ImportId))
             {
-                var input = new List<Segment>();
+                var input = new List<KeyValuePair<string, Segment>>();
                 var openings = new List<Segment>();
                 foreach (var line in import)
-                    (WallRegionGeometry.IsOpeningLayer(line.Layer) ? openings : input)
-                        .Add(new Segment(new Point(line.Start.X, line.Start.Y), new Point(line.End.X, line.End.Y)));
-                if (input.Count > 0) axes.AddRange(WallRegionGeometry.BuildWithOpenings(input, openings, Tolerance, maxThickness).CenterLines);
+                {
+                    var segment = new Segment(new Point(line.Start.X, line.Start.Y), new Point(line.End.X, line.End.Y));
+                    if (WallRegionGeometry.IsOpeningLayer(line.Layer)) openings.Add(segment);
+                    else input.Add(new KeyValuePair<string, Segment>(line.Layer, segment));
+                }
+                if (input.Count > 0) axes.AddRange(WallPairBuilder.Build(input, maxThickness, Tolerance, openings).Walls.Select(w => w.Axis));
             }
             return axes;
         }

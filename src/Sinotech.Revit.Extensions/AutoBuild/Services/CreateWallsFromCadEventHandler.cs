@@ -15,7 +15,7 @@ using RevitMCPSDK.API.Interfaces;
 namespace Sinotech.Revit.Extensions.AutoBuild.Services
 {
     /// <summary>
-    /// 自動建牆：讀取連結 CAD 所選圖層的封閉雙線區域，求中心線後建立基本牆
+    /// 自動建牆：讀取連結 CAD 牆線圖層的平行雙線，求中心線後建立基本牆（不要求牆輪廓封閉）
     /// 預設只建牆；門、窗、柱、樓板須明確要求（PlaceDoors、PlaceWindows、PlaceColumns、PlaceFloors）
     /// </summary>
     public class CreateWallsFromCadEventHandler : IExternalEventHandler, IWaitableExternalEventHandler
@@ -93,54 +93,31 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 BaseLevel = bottom.Name,
                 TopLevel = top.Name
             };
-            // 中心線連同其 CAD 牆厚（無法判定時為 0）
+            // 中心線連同其 CAD 牆厚
             var centerLines = new List<Tuple<WallRegionGeometry.Segment, double>>();
             // 開口圖層已補齊的牆缺口（放置門窗用）
             var gaps = new List<WallRegionGeometry.Gap>();
-            // 不同的 DWG 連結分開重建區域，避免互相干擾。
+            // 不同的 DWG 連結分開求牆，避免互相干擾。
             foreach (var import in reader.Lines.Where(l => selected.Contains(l.Layer)).GroupBy(l => l.ImportId))
             {
-                var input = new List<WallRegionGeometry.Segment>();
+                var input = new List<KeyValuePair<string, WallRegionGeometry.Segment>>();
                 var openings = new List<WallRegionGeometry.Segment>();
                 foreach (var line in import)
                 {
                     if (Math.Abs(line.Start.Z - line.End.Z) > tolerance) { stats.NonPlanarLines++; continue; }
-                    var target = WallRegionGeometry.IsOpeningLayer(line.Layer) ? openings : input;
-                    target.Add(new WallRegionGeometry.Segment(new WallRegionGeometry.Point(line.Start.X, line.Start.Y),
-                        new WallRegionGeometry.Point(line.End.X, line.End.Y)));
+                    var segment = new WallRegionGeometry.Segment(new WallRegionGeometry.Point(line.Start.X, line.Start.Y),
+                        new WallRegionGeometry.Point(line.End.X, line.End.Y));
+                    if (WallRegionGeometry.IsOpeningLayer(line.Layer)) openings.Add(segment);
+                    else input.Add(new KeyValuePair<string, WallRegionGeometry.Segment>(line.Layer, segment));
                 }
-                var geometry = input.Count == 0 ? WallRegionGeometry.Build(openings, tolerance, maxThickness) :
-                    WallRegionGeometry.BuildWithOpenings(input, openings, tolerance, maxThickness);
-                stats.JoinedOpenings += geometry.JoinedOpenings;
-                stats.OpenEdges += geometry.OpenEdges;
-                bool valid = true;
-                foreach (var boundary in geometry.Boundaries)
-                {
-                    try
-                    {
-                        var curves = new List<Curve>();
-                        for (int i = 0; i < boundary.Count; i++)
-                        {
-                            var a = boundary[i]; var b = boundary[(i + 1) % boundary.Count];
-                            curves.Add(Line.CreateBound(new XYZ(a.X, a.Y, bottom.Elevation), new XYZ(b.X, b.Y, bottom.Elevation)));
-                        }
-                        CurveLoop loop = CurveLoop.Create(curves);
-                        if (loop.IsOpen() || !loop.HasPlane()) throw new InvalidOperationException("邊界不封閉或不共平面");
-                        stats.ClosedRegions++;
-                    }
-                    catch (Exception) { valid = false; stats.InvalidLoops++; }
-                }
-                if (valid)
-                {
-                    centerLines.AddRange(geometry.CenterLines.Select(s =>
-                        Tuple.Create(s, WallRegionGeometry.Thickness(s, geometry.Boundaries, tolerance))));
-                    gaps.AddRange(geometry.Gaps);
-                }
+                var built = WallPairBuilder.Build(input, maxThickness, tolerance, openings);
+                centerLines.AddRange(built.Walls.Where(w => w.Axis.Length > minimumLength).Select(w => Tuple.Create(w.Axis, w.Thickness)));
+                gaps.AddRange(built.Gaps);
+                stats.JoinedOpenings += built.Gaps.Count;
+                stats.SkippedPatterns += built.Patterns;
+                stats.SkippedSymbols += built.Symbols;
+                stats.SkippedIsolated += built.Isolated;
             }
-            // 相同牆厚的中心線才合併，保留每道牆的厚度
-            centerLines = centerLines.GroupBy(c => Math.Round(c.Item2 * 304.8))
-                .SelectMany(g => WallRegionGeometry.Merge(g.Select(c => c.Item1), tolerance).Select(s => Tuple.Create(s, g.First().Item2)))
-                .Where(c => c.Item1.Length > minimumLength).ToList();
             // 門窗：依牆中心線的缺口與全部圖層的線、圓弧判斷（不看圖層名稱），門窗缺口補成連續牆
             var openingList = new List<OpeningDetector.Opening>();
             // 全部圖層的水平直線（門窗、柱、樓板判斷用）
@@ -169,7 +146,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 {
                     Success = false,
                     Message = (autoLayers ? "自動判定的圖層（" + string.Join("、", stats.UsedLayers) + "）" : "所選圖層") +
-                        $"未找到可建牆的封閉雙線區域。請確認邊界封閉、牆厚不超過 {Info.MaxThickness} mm，且為直線輪廓。\n" +
+                        $"未找到可建牆的平行雙線（間距 50～{Info.MaxThickness} mm、直線）。\n" +
                         Summary(stats),
                     Response = stats
                 };
@@ -311,8 +288,8 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
 
         private static string Summary(CadWallCreationResult s)
         {
-            return $"封閉邊界 {s.ClosedRegions} 個；已連接開口 {s.JoinedOpenings} 處；略過未封閉線段 {s.OpenEdges}；無效邊界 {s.InvalidLoops}；" +
-                $"非水平線段 {s.NonPlanarLines}；不支援的曲線 {s.UnsupportedCurves}；建牆失敗 {s.Failed}" +
+            return $"開口圖層補齊的門窗缺口 {s.JoinedOpenings} 處；排除的雙線：樓梯／填充線 {s.SkippedPatterns}、開口符號框 {s.SkippedSymbols}、" +
+                $"柱／設備等獨立小框或短線 {s.SkippedIsolated}；非水平線段 {s.NonPlanarLines}；不支援的曲線（弧形牆） {s.UnsupportedCurves}；建牆失敗 {s.Failed}" +
                 (s.Errors.Count == 0 ? "" : "\n" + string.Join("\n", s.Errors));
         }
 

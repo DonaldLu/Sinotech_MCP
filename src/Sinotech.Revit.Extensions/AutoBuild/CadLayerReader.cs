@@ -107,7 +107,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
         internal List<WallLayerDetector.LayerStats> AnalyzeLayers(double maxThickness)
         {
             double tolerance = 1 / 304.8;
-            return WallLayerDetector.Analyze(Lines.Where(l => Math.Abs(l.Start.Z - l.End.Z) <= tolerance)
+            return WallLayerDetector.AnalyzeWalls(Lines.Where(l => Math.Abs(l.Start.Z - l.End.Z) <= tolerance)
                 .Select(l => new KeyValuePair<string, WallRegionGeometry.Segment>(l.Layer, new WallRegionGeometry.Segment(
                     new WallRegionGeometry.Point(l.Start.X, l.Start.Y), new WallRegionGeometry.Point(l.End.X, l.End.Y)))), maxThickness);
         }

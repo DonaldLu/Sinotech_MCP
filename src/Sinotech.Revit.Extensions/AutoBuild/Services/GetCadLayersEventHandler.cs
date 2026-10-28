@@ -38,7 +38,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 Document doc = uiapp.ActiveUIDocument.Document;
                 var reader = CadInputs.Read(doc, ImportIds);
                 var lineCounts = reader.Lines.GroupBy(l => l.Layer).ToDictionary(g => g.Key, g => g.Count());
-                var analysis = reader.AnalyzeLayers(1000 / 304.8).ToDictionary(a => a.Layer);
+                var analysis = reader.AnalyzeLayers(1500 / 304.8).ToDictionary(a => a.Layer);
                 CadLayerReader.DefaultLevels(doc, out Level defaultBase, out Level defaultTop);
                 double tolerance = 1 / 304.8;
                 var columnCounts = StructureDetector.FindColumns(
@@ -64,6 +64,9 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                         PairedRatio = analysis.TryGetValue(layer, out var a) ? Math.Round(a.PairedRatio, 2) : 0,
                         PairedLength = a == null ? 0 : Math.Round(a.PairedLength * 0.3048, 1),
                         TypicalThicknesses = a == null ? new List<double>() : a.TypicalThicknesses.Select(t => Math.Round(t * 304.8)).ToList(),
+                        WallLength = a == null ? 0 : Math.Round(a.WallLength * 0.3048, 1),
+                        NetworkLength = a == null ? 0 : Math.Round(a.NetworkLength * 0.3048, 1),
+                        MeanWallLength = a == null ? 0 : Math.Round(a.MeanWallLength * 0.3048, 2),
                         Recommended = a?.Recommended ?? false,
                         ColumnShapes = columnCounts.TryGetValue(layer, out int shapes) ? shapes : 0,
                         BeamLikeName = StructureDetector.LooksLikeBeamLayer(layer)

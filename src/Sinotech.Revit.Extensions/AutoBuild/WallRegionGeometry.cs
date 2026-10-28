@@ -148,9 +148,11 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             }
             return false;
         }
-        private static bool OpeningCoversGap(List<Segment> openings, Point start, Point direction,
+        internal static bool OpeningCoversGap(List<Segment> openings, Point start, Point direction,
             double gap, double width, double tolerance)
         {
+            // 平行判斷容許約 0.06°（旋轉過的圖面座標有捨入誤差）
+            const double parallel = 1e-3;
             Point normal = Normal(direction);
             var left = new List<Tuple<double, double>>();
             var right = new List<Tuple<double, double>>();
@@ -161,7 +163,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             {
                 double a = Dot(line.A - start, direction), b = Dot(line.B - start, direction);
                 double x = Dot(line.A - start, normal), y = Dot(line.B - start, normal);
-                if (Math.Abs(Cross(Direction(line), direction)) <= 1e-6 &&
+                if (Math.Abs(Cross(Direction(line), direction)) <= parallel &&
                     Math.Abs(x) <= width / 2 + tolerance && Math.Abs(y) <= width / 2 + tolerance)
                 {
                     var span = Tuple.Create(Math.Min(a, b), Math.Max(a, b));
@@ -169,7 +171,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
                     else if (x > tolerance && y > tolerance) left.Add(span);
                     else if (x < -tolerance && y < -tolerance) right.Add(span);
                 }
-                if (Math.Abs(Cross(Direction(line), normal)) <= 1e-6)
+                if (Math.Abs(Cross(Direction(line), normal)) <= parallel)
                 {
                     var span = Tuple.Create(Math.Min(x, y), Math.Max(x, y));
                     if (Math.Abs(a) <= tolerance && Math.Abs(b) <= tolerance) firstJamb.Add(span);
@@ -238,7 +240,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
                     for (int j = i + 1; j < lines.Count; j++)
                     {
                         var b = lines[j];
-                        if (Math.Abs(Cross(d, Direction(b))) > 1e-6 ||
+                        if (Math.Abs(Cross(d, Direction(b))) > 1e-3 ||
                             Math.Abs(Cross(b.A - lines[i].A, d)) > tolerance ||
                             Math.Abs(Cross(b.B - lines[i].A, d)) > tolerance) continue;
                         double lo = Math.Min(Dot(b.A - lines[i].A, d), Dot(b.B - lines[i].A, d));

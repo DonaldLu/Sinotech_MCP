@@ -89,7 +89,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
                 for (int j = 0; j < centers.Count; j++)
                 {
                     Segment b = centers[j].Item1;
-                    if (i == j || Math.Abs(centers[j].Item2 - width) > tolerance || Math.Abs(Cross(d, Direction(b))) > 1e-6 ||
+                    if (i == j || Math.Abs(centers[j].Item2 - width) > 3 * tolerance || Math.Abs(Cross(d, Direction(b))) > 1e-3 ||
                         Math.Abs(Cross(b.A - a.A, d)) > tolerance || Math.Abs(Cross(b.B - a.A, d)) > tolerance) continue;
                     double lo = Math.Min(Dot(b.A - a.A, d), Dot(b.B - a.A, d));
                     double hi = Math.Max(Dot(b.A - a.A, d), Dot(b.B - a.A, d));

@@ -15,9 +15,10 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
     "create_walls_from_cad",
     {
       description:
-        "【自動建牆】讀取目前視圖連結 CAD（DWG）的線條，重建封閉的雙線牆區域，求出牆中心線後，在基準樓層與頂部樓層之間建立基本牆。" +
-        "只支援直線輪廓，圓弧會略過。使用者只要說「用連結的 CAD 建牆」即可：先呼叫 get_cad_layers，由你自行判定圖層，不需詢問使用者；" +
-        "layers、牆類型、樓層都可省略——省略 layers 時自動判定牆線圖層並加入全部開口圖層；省略牆類型時每道牆依 CAD 牆厚選用最接近的基本牆類型；" +
+        "【自動建牆】讀取目前視圖連結 CAD（DWG）牆線圖層的平行雙線（不要求牆輪廓封閉；門口、T 字交接處開口的牆線也能接起來），" +
+        "求出牆中心線與牆厚後，在基準樓層與頂部樓層之間建立基本牆。只支援直線，圓弧（弧形牆）會略過。" +
+        "使用者只要說「用連結的 CAD 建牆」即可：先呼叫 get_cad_layers，不需詢問使用者；" +
+        "layers、牆類型、樓層都可省略——除非使用者指定圖層，否則省略 layers，自動判定牆線圖層並加入全部開口圖層；省略牆類型時每道牆依 CAD 牆厚選用最接近的基本牆類型；" +
         "省略樓層時使用目前平面視圖的樓層與其上一層。只有使用者明確指定時才填牆類型或樓層。只處理視圖裁剪範圍內的圖形。" +
         "預設只建牆：placeDoors、placeWindows、placeColumns、placeFloors 皆為 false，CAD 有門窗圖層不代表要放門窗。" +
         "使用者明確要求門才設 placeDoors（有開門弧線為門、兩個半寬弧線為雙開門、牆面外有門片線為推拉門，並依 CAD 調整開門方向）；" +
@@ -29,7 +30,7 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
         layers: z
           .array(z.string())
           .optional()
-          .describe("要建牆的 CAD 圖層名稱（取自 get_cad_layers），應包含門窗開口圖層；省略則自動判定牆線圖層並加入全部開口圖層"),
+          .describe("使用者指定的牆線圖層（取自 get_cad_layers），應包含門窗開口圖層；未指定時省略，自動判定牆線圖層並加入全部開口圖層"),
         wallTypeName: z
           .string()
           .optional()
@@ -46,8 +47,8 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
           .describe("是否在基準與頂部樓層之間的每個樓層把牆分段（預設 false）"),
         maxThickness: z
           .number()
-          .default(1000)
-          .describe("可辨識的最大牆厚（mm，預設 1000）"),
+          .default(1500)
+          .describe("可辨識的最大牆厚（mm，預設 1500）"),
         placeDoors: z.boolean().default(false).describe("使用者明確要求放門時才設 true（預設 false）"),
         placeWindows: z.boolean().default(false).describe("使用者明確要求放窗時才設 true（預設 false）"),
         placeOpenings: z
@@ -80,7 +81,7 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
         baseLevel: args.baseLevel,
         topLevel: args.topLevel,
         byLevel: args.byLevel ?? false,
-        maxThickness: args.maxThickness ?? 1000,
+        maxThickness: args.maxThickness ?? 1500,
         importIds: args.importIds ?? [],
         placeDoors: args.placeDoors ?? false,
         placeWindows: args.placeWindows ?? false,

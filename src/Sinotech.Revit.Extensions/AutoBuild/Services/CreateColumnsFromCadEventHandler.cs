@@ -57,7 +57,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 return Fail("目前視圖沒有連結的 CAD，請切換到含有 DWG 連結的平面視圖。");
             var stats = new CadStructureResult { BaseLevel = bottom.Name, TopLevel = top.Name, CroppedToView = reader.Bounds != null };
             var supports = CadInputs.ModelSupports(doc);
-            if (supports.Count == 0) supports = CadInputs.CadWallAxes(reader, 1000 / 304.8);
+            if (supports.Count == 0) supports = CadInputs.CadWallAxes(reader, 1500 / 304.8);
             var columns = CadInputs.Columns(reader, CadInputs.LayerLines(reader), Info.ColumnLayers, supports, out var used);
             stats.ColumnLayers = used;
             if (columns.Count == 0)

@@ -14,7 +14,7 @@ using Sinotech.Revit.Extensions.AutoBuild.Services;
 namespace Sinotech.Revit.Extensions.AutoBuild.Commands
 {
     /// <summary>
-    /// 自動建牆：依連結 CAD 所選圖層的封閉雙線區域求中心線建牆
+    /// 自動建牆：依連結 CAD 牆線圖層的平行雙線求中心線建牆
     /// </summary>
     public class CreateWallsFromCadCommand : ExternalEventCommandBase
     {
@@ -38,7 +38,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Commands
                     var info = parameters?.ToObject<CadWallCreationInfo>() ?? new CadWallCreationInfo();
                     if (!string.IsNullOrWhiteSpace(info.BaseLevel) && info.BaseLevel == info.TopLevel)
                         throw new ArgumentException("基準樓層與頂部樓層相同，請重新選擇");
-                    if (info.MaxThickness <= 0) info.MaxThickness = 1000;
+                    if (info.MaxThickness <= 0) info.MaxThickness = 1500;
 
                     _handler.SetParameters(info);
 

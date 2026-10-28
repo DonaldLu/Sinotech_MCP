@@ -46,7 +46,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         /// <summary>
         /// 可辨識的最大牆厚（mm）
         /// </summary>
-        public double MaxThickness { get; set; } = 1000;
+        public double MaxThickness { get; set; } = 1500;
 
         /// <summary>
         /// 只讀取指定的連結 CAD（ImportInstance ElementId）；空白表示目前視圖中全部連結 CAD
@@ -234,11 +234,12 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public Dictionary<string, int> StructureTypeCounts { get; set; } = new Dictionary<string, int>();
         public List<string> CreatedStructureTypes { get; set; } = new List<string>();
         public List<string> StructureNotes { get; set; } = new List<string>();
-        public int ClosedRegions { get; set; }
         public int JoinedOpenings { get; set; }
         public int CenterLines { get; set; }
-        public int OpenEdges { get; set; }
-        public int InvalidLoops { get; set; }
+        /// <summary>排除的平行雙線：等間距重複（樓梯、填充線）、有對角線的開口符號框、不與牆相連的小框或短線（柱、設備）</summary>
+        public int SkippedPatterns { get; set; }
+        public int SkippedSymbols { get; set; }
+        public int SkippedIsolated { get; set; }
         public int NonPlanarLines { get; set; }
         public int UnsupportedCurves { get; set; }
         public int Failed { get; set; }
@@ -284,7 +285,13 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public double PairedLength { get; set; }
         /// <summary>常見雙線間距（mm），由多到少，可視為牆厚</summary>
         public List<double> TypicalThicknesses { get; set; } = new List<double>();
-        /// <summary>依雙線特徵與圖層名稱判定為牆線圖層</summary>
+        /// <summary>由雙線求得的牆中心線總長（m）</summary>
+        public double WallLength { get; set; }
+        /// <summary>屬於牆網（5 道以上相連的牆）的牆長（m）；真正的牆線圖層會連成牆網</summary>
+        public double NetworkLength { get; set; }
+        /// <summary>平均每道牆長（m）；樓梯、填充線、設備等多半很短</summary>
+        public double MeanWallLength { get; set; }
+        /// <summary>依求得的牆（牆網、牆長、與主要牆相接）判定為牆線圖層</summary>
         public bool Recommended { get; set; }
         /// <summary>柱形狀（封閉小矩形或圓）數量</summary>
         public int ColumnShapes { get; set; }

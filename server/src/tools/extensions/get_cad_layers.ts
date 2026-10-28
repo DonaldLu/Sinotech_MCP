@@ -16,11 +16,13 @@ export function registerGetCadLayersTool(server: McpServer) {
     {
       description:
         "【自動建牆】列出目前 Revit 視圖中連結 CAD（DWG）的圖層，以及可用的基本牆類型（牆厚 mm）與樓層（高程 mm）。" +
-        "每個圖層附有雙線統計：pairedRatio（有平行雙線夥伴的線段比例）、pairedLength（m）、typicalThicknesses（常見雙線間距 mm，即可能的牆厚）、" +
-        "recommended（依雙線特徵與名稱判定為牆線圖層）；recommendedLayers 為判定結果，defaultBaseLevel／defaultTopLevel 為預設樓層。" +
-        "只讀取目前視圖裁剪範圍內的圖形。不要請使用者選圖層：由你依統計與圖層名稱自行判定牆線圖層（排除柱、樓梯、家具、標註等即使有雙線也不是牆的圖層），" +
-        "isOpeningLayer 為 true 的門窗開口圖層一併選入，讓開口兩側的牆能相連。判定結果與 recommendedLayers 相同時，" +
-        "呼叫 create_walls_from_cad 可直接省略 layers。columnShapes 為封閉小矩形或圓（可能是柱）的數量；beamLikeName 表示名稱像梁圖層（結構平面圖用 create_beams_from_cad）；柱用 create_columns_from_cad、板用 create_floors_from_cad；" +
+        "每個圖層附有實際由平行雙線求得的牆統計：wallLength（牆中心線總長 m）、networkLength（連成牆網的牆長 m，真正的牆會互相連接）、" +
+        "meanWallLength（平均每道牆長 m，樓梯踏步、填充線、設備多半很短）、typicalThicknesses（常見牆厚 mm）、pairedRatio、pairedLength；" +
+        "recommended 為依上述統計判定的牆線圖層（已排除樓梯、填充線、開口符號框、柱、設備、電扶梯等），recommendedLayers 為判定結果，" +
+        "defaultBaseLevel／defaultTopLevel 為預設樓層。只讀取目前視圖裁剪範圍內的圖形。不要請使用者選圖層。" +
+        "圖層名稱常是無意義的編號（例如由 MicroStation 轉出的「圖層 27」），請以 recommendedLayers 為準，不要只看 pairedRatio 自行挑圖層；" +
+        "除非使用者指定圖層，呼叫 create_walls_from_cad 時省略 layers（會自動判定並加入門窗開口圖層）。" +
+        "使用者另外指定某圖層也要建牆時，layers 填 recommendedLayers 加上該圖層。columnShapes 為封閉小矩形或圓（可能是柱）的數量；beamLikeName 表示名稱像梁圖層（結構平面圖用 create_beams_from_cad）；柱用 create_columns_from_cad、板用 create_floors_from_cad；" +
         "floorTypes／defaultFloorType 為專案中的樓板類型。向使用者簡短說明你選了哪些圖層與理由。",
       inputSchema: {
         importIds: z
