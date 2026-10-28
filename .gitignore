@@ -399,3 +399,6 @@ server/revit-data.db
 /Sinotech_MCP_Setup/Release/
 /Sinotech_MCP_Setup/Debug/
 /dist/
+
+# 測試用 CAD 圖檔與截圖（只放本機，不進版本控制）
+/Q/
