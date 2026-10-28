@@ -12,7 +12,7 @@ MCP Client ⇄(stdio)⇄ server/ (TypeScript) ⇄(TCP 127.0.0.1:8080)⇄ src/Sin
 | `Sinotech.MCP.sln` | Visual Studio 解決方案（Add-in、Commands、Setup） |
 | `src/Sinotech.Revit.Addin/` | Revit Add-in（`Sinotech_MCP.addin`），功能區「中興MCP」含 AI助手、開關與設定 |
 | `src/Sinotech.Revit.Commands/` | 實際執行 Revit API 的命令集，根目錄 `command.json` 為命令清單 |
-| `src/Sinotech.Revit.Extensions/` | **中興自行開發命令集**（自動建牆等），使用須經開發者授權 |
+| `src/Sinotech.Revit.Extensions/` | **中興自行開發命令集**（依 CAD 自動建柱、樑、板、牆），Copyright © 2026 Donald |
 | `Sinotech_MCP_Setup/` | Revit 2024–2026 MSI 安裝檔產生流程，見 [Setup 說明](Sinotech_MCP_Setup/README.md) |
 
 ## 建置與安裝
@@ -42,7 +42,7 @@ claude mcp add sinotech-mcp -- node C:\Prj\Revit\Sinotech_MCP\server\build\index
 | `src/Sinotech.Revit.Extensions/` | C# 命令集，編譯為 `SinotechExtensions.dll`，部署到 `Commands\SinotechExtensions\` |
 | `server/src/tools/extensions/` | 對應的 MCP 工具 |
 
-目前功能：**自動建牆**（移植自 TYBIM 自動翻牆）。在平面視圖連結 DWG 後，於 AI助手中輸入「用連結的 CAD 自動建牆」，AI 會依線段的雙線特徵自行判定牆線與門窗圖層、依 CAD 牆厚選用最接近的牆類型，在確認視窗按確認後建牆。詳見 [`src/Sinotech.Revit.Extensions/README.md`](src/Sinotech.Revit.Extensions/README.md)。
+目前功能：依連結 CAD **自動建柱、樑、板、牆**，四個功能各自獨立；建牆預設只建牆，門、窗、柱、板須明確要求。在平面視圖連結 DWG 後，於 AI助手中輸入例如「用連結的 CAD 自動建牆」「依 CAD 建柱」「依結構平面圖建梁」「牆柱建好後建板」，AI 會自行判定圖層並直接執行（不跳確認，可用 Revit「復原」還原）。詳見 [`src/Sinotech.Revit.Extensions/README.md`](src/Sinotech.Revit.Extensions/README.md)。
 
 ## 授權
 

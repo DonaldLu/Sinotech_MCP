@@ -27,7 +27,7 @@ export class ApiTools {
     for (const [pattern, words] of [
       [/樓層|標高|level|storey/i, ["level"]], [/房間|room/i, ["room"]],
       [/牆|wall/i, ["wall"]], [/cad|dwg|圖層|layer/i, ["cad"]], [/門|door/i, ["door"]], [/相機|camera/i, ["camera"]],
-      [/梁|樑|beam/i, ["beam", "cad"]], [/柱|column/i, ["column", "cad"]],
+      [/梁|樑|beam/i, ["beam", "cad"]], [/柱|column/i, ["column", "cad"]], [/建板|slab/i, ["floor", "cad"]],
       [/建立|新增|create|add/i, ["create"]], [/刪除|delete/i, ["delete"]],
       [/查詢|讀取|query|list|get/i, ["query", "get"]], [/樓板|floor/i, ["floor"]]
     ] as const) if (pattern.test(normalized)) for (const word of words) terms.add(word);

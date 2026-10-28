@@ -54,9 +54,19 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public List<long> ImportIds { get; set; } = new List<long>();
 
         /// <summary>
-        /// 建牆後依 CAD 判斷門窗並放置（預設 true）
+        /// 建牆時依 CAD 放置門（預設 false：只建牆）
         /// </summary>
-        public bool PlaceOpenings { get; set; } = true;
+        public bool PlaceDoors { get; set; }
+
+        /// <summary>
+        /// 建牆時依 CAD 放置窗（預設 false：只建牆）
+        /// </summary>
+        public bool PlaceWindows { get; set; }
+
+        /// <summary>
+        /// 舊版開關：同時放置門與窗（預設 false）
+        /// </summary>
+        public bool PlaceOpenings { get; set; }
 
         /// <summary>
         /// 窗台高度（mm）；空白時使用窗類型的預設值
@@ -64,9 +74,9 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public double? WindowSillHeight { get; set; }
 
         /// <summary>
-        /// 依 CAD 放置結構柱（預設 true）
+        /// 建牆時一併依 CAD 放置結構柱（預設 false；單獨建柱用 create_columns_from_cad）
         /// </summary>
-        public bool PlaceColumns { get; set; } = true;
+        public bool PlaceColumns { get; set; }
 
         /// <summary>
         /// 柱的 CAD 圖層；空白時自動判定（封閉小矩形或圓、尺寸重複且貼著牆）
@@ -74,9 +84,9 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public List<string> ColumnLayers { get; set; } = new List<string>();
 
         /// <summary>
-        /// 每個房間建一塊樓板，邊界在牆與柱的內緣（預設 true）
+        /// 建牆時一併每個房間建一塊樓板（預設 false；單獨建板用 create_floors_from_cad）
         /// </summary>
-        public bool PlaceFloors { get; set; } = true;
+        public bool PlaceFloors { get; set; }
 
         /// <summary>
         /// 樓板類型名稱；空白時使用專案預設的樓板類型
@@ -95,12 +105,61 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public string Level { get; set; }
         /// <summary>沒有標註時，梁深 = 梁寬 × 此倍數（預設 1.4，四捨五入到 5 cm）</summary>
         public double DefaultDepthRatio { get; set; } = 1.4;
-        /// <summary>依 CAD 一併放置結構柱（柱在梁所在樓層之下一層到此樓層）</summary>
-        public bool PlaceColumns { get; set; } = true;
+        /// <summary>一併依 CAD 放置結構柱（下一層到此樓層；預設 false）</summary>
+        public bool PlaceColumns { get; set; }
         /// <summary>柱的 CAD 圖層；空白時自動判定</summary>
         public List<string> ColumnLayers { get; set; } = new List<string>();
         /// <summary>只讀取指定的連結 CAD；空白表示目前視圖中全部連結 CAD</summary>
         public List<long> ImportIds { get; set; } = new List<long>();
+    }
+
+    /// <summary>
+    /// 自動建柱（create_columns_from_cad）輸入參數
+    /// </summary>
+    public class CadColumnCreationInfo
+    {
+        /// <summary>柱的 CAD 圖層；空白時自動判定</summary>
+        public List<string> ColumnLayers { get; set; } = new List<string>();
+        /// <summary>基準樓層；空白時使用目前平面視圖的樓層</summary>
+        public string BaseLevel { get; set; }
+        /// <summary>頂部樓層；空白時使用基準樓層的上一層</summary>
+        public string TopLevel { get; set; }
+        public List<long> ImportIds { get; set; } = new List<long>();
+    }
+
+    /// <summary>
+    /// 自動建板（create_floors_from_cad）輸入參數
+    /// </summary>
+    public class CadFloorCreationInfo
+    {
+        /// <summary>樓板所在樓層；空白時使用目前平面視圖的樓層</summary>
+        public string Level { get; set; }
+        /// <summary>樓板類型名稱；空白時使用專案預設的樓板類型</summary>
+        public string FloorTypeName { get; set; }
+        public List<long> ImportIds { get; set; } = new List<long>();
+    }
+
+    /// <summary>
+    /// 自動建柱、建板結果統計
+    /// </summary>
+    public class CadStructureResult
+    {
+        public string BaseLevel { get; set; }
+        public string TopLevel { get; set; }
+        public bool CroppedToView { get; set; }
+        public int ColumnsPlaced { get; set; }
+        public List<string> ColumnLayers { get; set; } = new List<string>();
+        public int FloorsCreated { get; set; }
+        public int FloorsSkippedShafts { get; set; }
+        public int FloorsSkippedStairs { get; set; }
+        public int FloorsSkippedOutside { get; set; }
+        public int FloorFailures { get; set; }
+        public string FloorType { get; set; }
+        public Dictionary<string, int> TypeCounts { get; set; } = new Dictionary<string, int>();
+        public List<string> CreatedTypes { get; set; } = new List<string>();
+        public int Failed { get; set; }
+        public List<string> Notes { get; set; } = new List<string>();
+        public List<string> Errors { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -168,6 +227,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public int FloorsCreated { get; set; }
         public int FloorsSkippedShafts { get; set; }
         public int FloorsSkippedStairs { get; set; }
+        public int FloorsSkippedOutside { get; set; }
         public int FloorFailures { get; set; }
         public string FloorType { get; set; }
         /// <summary>柱、樓板的類型統計與新建類型、族群載入等說明</summary>

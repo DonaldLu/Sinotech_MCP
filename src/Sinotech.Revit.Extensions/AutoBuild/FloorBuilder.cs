@@ -23,9 +23,11 @@ namespace Sinotech.Revit.Extensions.AutoBuild
         public int SkippedShafts { get; private set; }
         public int SkippedStairs { get; private set; }
         public int Failed { get; private set; }
+        // 不完全在視圖裁剪範圍內而略過的房間
+        public int SkippedOutside { get; private set; }
         public List<string> Errors { get; } = new List<string>();
 
-        public void Build(Document doc, Level level, FloorType type, List<Segment> cadLines)
+        public void Build(Document doc, Level level, FloorType type, List<Segment> cadLines, CadLayerReader.Region bounds = null)
         {
             var profiles = new List<List<CurveLoop>>();
             using (var temporary = new SubTransaction(doc))
@@ -53,7 +55,9 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             }
             foreach (var loops in profiles)
             {
-                var outline = loops[0].SelectMany(c => c.Tessellate()).Select(p => new WallRegionGeometry.Point(p.X, p.Y)).ToList();
+                var points = loops[0].SelectMany(c => c.Tessellate()).ToList();
+                if (bounds != null && !points.All(bounds.Contains)) { SkippedOutside++; continue; }
+                var outline = points.Select(p => new WallRegionGeometry.Point(p.X, p.Y)).ToList();
                 var inside = cadLines.Where(l => Contains(outline, (l.A + l.B) * .5)).ToList();
                 if (IsShaft(outline, inside)) { SkippedShafts++; continue; }
                 if (IsStair(inside)) { SkippedStairs++; continue; }

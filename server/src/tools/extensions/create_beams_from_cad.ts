@@ -9,7 +9,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { withRevitConnection } from "../../utils/ConnectionManager.js";
 
-// 自動建梁：依結構平面圖的梁雙線與標註建立梁，可一併放置結構柱（會修改模型）
+// 自動建梁：依結構平面圖的梁雙線與標註建立梁，只建梁，可要求一併建柱（會修改模型）
 export function registerCreateBeamsFromCadTool(server: McpServer) {
   server.registerTool(
     "create_beams_from_cad",
@@ -18,9 +18,9 @@ export function registerCreateBeamsFromCadTool(server: McpServer) {
         "【自動建梁】讀取目前視圖連結的結構平面圖（DWG），由梁的平行雙線求梁中心線與梁寬，並直接讀取 DWG 的梁標註文字取得梁深" +
         "（RC 梁「B23(50X70)」為寬×深 cm；鋼梁「H500X200」為深×翼寬 mm），梁頂齊指定樓層；梁端會延伸到相交的梁或柱心。" +
         "沒有標註的梁沿用同一直線上的標註，仍無則梁深 = 梁寬 × defaultDepthRatio。鋼梁需專案中已有相同斷面的結構構架類型，否則略過並回報。" +
-        "預設一併依柱輪廓放置結構柱（下一層到此樓層）。一張 DWG 有多個樓層平面時，只處理目前視圖「裁剪範圍」內的圖形，" +
-        "請提醒使用者先把視圖裁剪到要建的那一層平面。先呼叫 get_cad_layers：beamLikeName 為 true 且有雙線（pairedRatio）的圖層是梁圖層，" +
-        "由你判定即可，與自動判定相同時可省略 layers。執行前面板會顯示參數供使用者確認。執行結果請如實轉告使用者。",
+        "預設只建梁；使用者明確要求一起建柱時才設 placeColumns（下一層到此樓層）。一張 DWG 有多個樓層平面時，只處理目前視圖「裁剪範圍」內的圖形，" +
+        "結果中若處理到多層平面，請提醒使用者把視圖裁剪到要建的那一層。先呼叫 get_cad_layers：beamLikeName 為 true 且有雙線（pairedRatio）的圖層是梁圖層，" +
+        "由你判定即可，與自動判定相同時可省略 layers。直接執行，不要詢問使用者；執行結果請如實轉告使用者。",
       inputSchema: {
         layers: z
           .array(z.string())
@@ -31,7 +31,7 @@ export function registerCreateBeamsFromCadTool(server: McpServer) {
           .number()
           .default(1.4)
           .describe("沒有標註的梁：梁深 = 梁寬 × 此倍數（預設 1.4，四捨五入到 5 cm）"),
-        placeColumns: z.boolean().default(true).describe("是否一併依柱輪廓放置結構柱（預設 true）"),
+        placeColumns: z.boolean().default(false).describe("使用者明確要求一起建柱時才設 true（預設 false）"),
         columnLayers: z.array(z.string()).optional().describe("柱的 CAD 圖層；省略則自動判定"),
         importIds: z
           .array(z.number())
@@ -45,7 +45,7 @@ export function registerCreateBeamsFromCadTool(server: McpServer) {
         layers: args.layers ?? [],
         level: args.level,
         defaultDepthRatio: args.defaultDepthRatio ?? 1.4,
-        placeColumns: args.placeColumns ?? true,
+        placeColumns: args.placeColumns ?? false,
         columnLayers: args.columnLayers ?? [],
         importIds: args.importIds ?? [],
       };

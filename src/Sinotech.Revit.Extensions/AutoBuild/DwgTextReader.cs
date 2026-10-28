@@ -42,6 +42,11 @@ namespace Sinotech.Revit.Extensions.AutoBuild
                     notes.Add($"找不到「{import.Name}」的 DWG 檔，無法讀取標註文字。");
                     continue;
                 }
+                if (new FileInfo(path).Length > 256L * 1024 * 1024)
+                {
+                    notes.Add($"「{Path.GetFileName(path)}」超過 256 MB，未讀取標註文字。");
+                    continue;
+                }
                 CadDocument cad;
                 try
                 {

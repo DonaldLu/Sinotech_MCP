@@ -36,7 +36,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
             try
             {
                 Document doc = uiapp.ActiveUIDocument.Document;
-                var reader = new CadLayerReader(doc).Read(ImportIds);
+                var reader = CadInputs.Read(doc, ImportIds);
                 var lineCounts = reader.Lines.GroupBy(l => l.Layer).ToDictionary(g => g.Key, g => g.Count());
                 var analysis = reader.AnalyzeLayers(1000 / 304.8).ToDictionary(a => a.Layer);
                 CadLayerReader.DefaultLevels(doc, out Level defaultBase, out Level defaultTop);

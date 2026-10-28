@@ -52,7 +52,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
         private const double MinWallWidth = 50 / 304.8;
 
         internal static Result Detect(List<Tuple<Segment, double>> centers, IEnumerable<WallRegionGeometry.Gap> bridged,
-            List<Segment> lines, List<CadArc> arcs, double tolerance, double minWidth, double maxWidth)
+            List<Segment> lines, List<CadArc> arcs, double tolerance, double minWidth, double maxWidth, Func<Kind, bool> fill = null)
         {
             var result = new Result();
             var gaps = bridged.Where(g => g.Width >= MinWallWidth).Select(g => new Opening { Start = g.Start, End = g.End, WallWidth = g.Width }).ToList();
@@ -65,8 +65,8 @@ namespace Sinotech.Revit.Extensions.AutoBuild
                 // 柱子打斷的牆不是開口
                 if (gap.Kind != Kind.Column) result.Openings.Add(gap);
             }
-            // 門窗缺口補上相同牆厚的中心線，讓牆連續，門窗才有宿主牆
-            var fillers = result.Openings.Where(o => o.Kind != Kind.Unknown && unbridged.Contains(o))
+            // 要放置的門窗缺口補上相同牆厚的中心線，讓牆連續，門窗才有宿主牆（不放的種類保留缺口）
+            var fillers = result.Openings.Where(o => o.Kind != Kind.Unknown && (fill == null || fill(o.Kind)) && unbridged.Contains(o))
                 .Select(o => Tuple.Create(new Segment(o.Start, o.End), o.WallWidth));
             result.CenterLines = centers.Concat(fillers).GroupBy(c => Math.Round(c.Item2 * 304.8))
                 .SelectMany(g => WallRegionGeometry.Merge(g.Select(c => c.Item1), tolerance).Select(s => Tuple.Create(s, g.First().Item2)))

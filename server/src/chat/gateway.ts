@@ -10,6 +10,8 @@ export type Approve = (request: { id: string; name: string; arguments: Record<st
 // The original Sinotech server tools carry no readOnlyHint annotations, so reads are listed explicitly.
 // Tools that declare readOnlyHint (e.g. tools/extensions) are also reads.
 // Anything else is treated as a write and needs user confirmation.
+// 自動建模（依 CAD 建柱、樑、板、牆）直接執行，不跳確認；完成後可用 Revit 的「復原」還原
+const autoBuildTools = new Set(["create_walls_from_cad", "create_columns_from_cad", "create_beams_from_cad", "create_floors_from_cad"]);
 const readOnlyTools = new Set([
   "ai_element_filter", "analyze_model_statistics", "export_room_data", "get_available_family_types",
   "get_current_view_elements", "get_current_view_info", "get_material_quantities", "get_selected_elements",
@@ -39,7 +41,7 @@ export class McpGateway implements ToolGateway {
     signal.throwIfAborted();
     const tool = this.tools.find(t => t.name === name);
     if (!tool) return textResult("UNKNOWN_TOOL", true);
-    if (!readOnlyTools.has(name) && tool.annotations?.readOnlyHint !== true) {
+    if (!readOnlyTools.has(name) && !autoBuildTools.has(name) && tool.annotations?.readOnlyHint !== true) {
       const preview = { title: "Revit 模型修改", tool: name, arguments: args, note: "以下是本次執行參數，請核對元素 ID、尺寸、範圍或完整程式碼後確認。" };
       if (!await this.approve({ id: randomUUID(), name, arguments: args, preview }, signal)) return textResult("使用者已取消此次操作，停止後續寫入。", true);
     }

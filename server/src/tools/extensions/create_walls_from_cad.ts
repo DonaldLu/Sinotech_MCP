@@ -9,7 +9,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { withRevitConnection } from "../../utils/ConnectionManager.js";
 
-// 自動建牆第二步：依 CAD 圖層（可自動判定）的封閉雙線區域求中心線並建牆，並依 CAD 放置門窗（會修改模型）
+// 自動建牆：依 CAD 圖層（可自動判定）的封閉雙線區域求中心線並建牆；門、窗、柱、板須明確要求（會修改模型）
 export function registerCreateWallsFromCadTool(server: McpServer) {
   server.registerTool(
     "create_walls_from_cad",
@@ -18,12 +18,13 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
         "【自動建牆】讀取目前視圖連結 CAD（DWG）的線條，重建封閉的雙線牆區域，求出牆中心線後，在基準樓層與頂部樓層之間建立基本牆。" +
         "只支援直線輪廓，圓弧會略過。使用者只要說「用連結的 CAD 建牆」即可：先呼叫 get_cad_layers，由你自行判定圖層，不需詢問使用者；" +
         "layers、牆類型、樓層都可省略——省略 layers 時自動判定牆線圖層並加入全部開口圖層；省略牆類型時每道牆依 CAD 牆厚選用最接近的基本牆類型；" +
-        "省略樓層時使用目前平面視圖的樓層與其上一層。只有使用者明確指定時才填牆類型或樓層。執行前面板會顯示參數供使用者確認。" +
-        "預設會同時放置門窗（placeOpenings）：依牆的缺口與 CAD 圖形判斷——有開門弧線為門（兩個半寬弧線為雙開門）、牆厚內有平行線為窗、" +
-        "牆面外有門片線為推拉門；使用專案中寬度最接近的門窗類型，必要時複製等寬類型，並依 CAD 調整開門方向。無法判斷的缺口只回報不放置。" +
-        "預設也會放置結構柱（placeColumns：封閉小矩形或圓、尺寸重複且貼著牆的圖層，依尺寸選用或新建 b×h 類型），" +
-        "並建立樓板（placeFloors：每個房間一塊、邊界在牆與柱的內緣，使用專案預設樓板類型；電梯井、樓梯間不建板）。" +
-        "所有長度單位為公釐（mm）。執行結果會回報使用的圖層、各牆類型數量、厚度不符的牆數、門窗數量與類型、無法判斷的缺口與略過的線段統計，請如實轉告使用者。",
+        "省略樓層時使用目前平面視圖的樓層與其上一層。只有使用者明確指定時才填牆類型或樓層。只處理視圖裁剪範圍內的圖形。" +
+        "預設只建牆：placeDoors、placeWindows、placeColumns、placeFloors 皆為 false，CAD 有門窗圖層不代表要放門窗。" +
+        "使用者明確要求門才設 placeDoors（有開門弧線為門、兩個半寬弧線為雙開門、牆面外有門片線為推拉門，並依 CAD 調整開門方向）；" +
+        "明確要求窗才設 placeWindows（牆厚內有平行線為窗）；只要求其中一種時不可順便放另一種。門窗使用寬度最接近的類型，必要時複製等寬類型，無法判斷的缺口只回報。" +
+        "明確要求一起建柱、板時才設 placeColumns、placeFloors（單獨建柱、建板請用 create_columns_from_cad、create_floors_from_cad）。" +
+        "直接執行，不要詢問使用者。" +
+        "所有長度單位為公釐（mm）。執行結果會回報使用的圖層、各牆類型數量、厚度不符的牆數、（有要求時）門窗柱板數量與略過的線段統計，請如實轉告使用者。",
       inputSchema: {
         layers: z
           .array(z.string())
@@ -47,20 +48,22 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
           .number()
           .default(1000)
           .describe("可辨識的最大牆厚（mm，預設 1000）"),
+        placeDoors: z.boolean().default(false).describe("使用者明確要求放門時才設 true（預設 false）"),
+        placeWindows: z.boolean().default(false).describe("使用者明確要求放窗時才設 true（預設 false）"),
         placeOpenings: z
           .boolean()
-          .default(true)
-          .describe("建牆後是否依 CAD 判斷並放置門窗（預設 true）；使用者只要牆時設為 false"),
+          .default(false)
+          .describe("舊版開關：同時放門與窗（預設 false）；請改用 placeDoors、placeWindows"),
         windowSillHeight: z
           .number()
           .optional()
           .describe("窗台高度（mm）；省略則使用窗類型的預設值"),
-        placeColumns: z.boolean().default(true).describe("是否依 CAD 放置結構柱（預設 true）"),
+        placeColumns: z.boolean().default(false).describe("使用者明確要求一起建柱時才設 true（預設 false）"),
         columnLayers: z
           .array(z.string())
           .optional()
           .describe("柱的 CAD 圖層（get_cad_layers 中 columnShapes 多的圖層）；省略則自動判定"),
-        placeFloors: z.boolean().default(true).describe("是否每個房間建一塊樓板（預設 true）"),
+        placeFloors: z.boolean().default(false).describe("使用者明確要求一起建板時才設 true（預設 false）；每個房間一塊、邊界在牆柱內緣"),
         floorTypeName: z.string().optional().describe("樓板類型名稱（取自 get_cad_layers 的 floorTypes）；省略則使用專案預設樓板類型"),
         importIds: z
           .array(z.number())
@@ -79,11 +82,13 @@ export function registerCreateWallsFromCadTool(server: McpServer) {
         byLevel: args.byLevel ?? false,
         maxThickness: args.maxThickness ?? 1000,
         importIds: args.importIds ?? [],
-        placeOpenings: args.placeOpenings ?? true,
+        placeDoors: args.placeDoors ?? false,
+        placeWindows: args.placeWindows ?? false,
+        placeOpenings: args.placeOpenings ?? false,
         windowSillHeight: args.windowSillHeight,
-        placeColumns: args.placeColumns ?? true,
+        placeColumns: args.placeColumns ?? false,
         columnLayers: args.columnLayers ?? [],
-        placeFloors: args.placeFloors ?? true,
+        placeFloors: args.placeFloors ?? false,
         floorTypeName: args.floorTypeName,
       };
 
