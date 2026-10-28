@@ -14,11 +14,12 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
     {
         /// <summary>
         /// 要建牆的 CAD 圖層名稱；名稱含 OPEN/DOOR/WINDOW/開口/門/窗 的圖層視為開口，用來連接牆
+        /// 空白時自動判定：使用雙線特徵像牆的圖層，加上全部開口圖層
         /// </summary>
         public List<string> Layers { get; set; } = new List<string>();
 
         /// <summary>
-        /// 基本牆類型名稱（與 WallTypeId 擇一）
+        /// 基本牆類型名稱（與 WallTypeId 擇一）；兩者皆空白時，每道牆依 CAD 牆厚選用最接近的基本牆類型
         /// </summary>
         public string WallTypeName { get; set; }
 
@@ -28,12 +29,12 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public long? WallTypeId { get; set; }
 
         /// <summary>
-        /// 基準樓層名稱
+        /// 基準樓層名稱；空白時使用目前平面視圖的樓層
         /// </summary>
         public string BaseLevel { get; set; }
 
         /// <summary>
-        /// 頂部樓層名稱
+        /// 頂部樓層名稱；空白時使用基準樓層的上一層
         /// </summary>
         public string TopLevel { get; set; }
 
@@ -51,6 +52,82 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         /// 只讀取指定的連結 CAD（ImportInstance ElementId）；空白表示目前視圖中全部連結 CAD
         /// </summary>
         public List<long> ImportIds { get; set; } = new List<long>();
+
+        /// <summary>
+        /// 建牆後依 CAD 判斷門窗並放置（預設 true）
+        /// </summary>
+        public bool PlaceOpenings { get; set; } = true;
+
+        /// <summary>
+        /// 窗台高度（mm）；空白時使用窗類型的預設值
+        /// </summary>
+        public double? WindowSillHeight { get; set; }
+
+        /// <summary>
+        /// 依 CAD 放置結構柱（預設 true）
+        /// </summary>
+        public bool PlaceColumns { get; set; } = true;
+
+        /// <summary>
+        /// 柱的 CAD 圖層；空白時自動判定（封閉小矩形或圓、尺寸重複且貼著牆）
+        /// </summary>
+        public List<string> ColumnLayers { get; set; } = new List<string>();
+
+        /// <summary>
+        /// 每個房間建一塊樓板，邊界在牆與柱的內緣（預設 true）
+        /// </summary>
+        public bool PlaceFloors { get; set; } = true;
+
+        /// <summary>
+        /// 樓板類型名稱；空白時使用專案預設的樓板類型
+        /// </summary>
+        public string FloorTypeName { get; set; }
+    }
+
+    /// <summary>
+    /// 自動建梁（create_beams_from_cad）輸入參數
+    /// </summary>
+    public class CadBeamCreationInfo
+    {
+        /// <summary>梁的 CAD 圖層；空白時依圖層名稱與雙線特徵自動判定</summary>
+        public List<string> Layers { get; set; } = new List<string>();
+        /// <summary>梁頂所在樓層；空白時使用目前平面視圖的樓層</summary>
+        public string Level { get; set; }
+        /// <summary>沒有標註時，梁深 = 梁寬 × 此倍數（預設 1.4，四捨五入到 5 cm）</summary>
+        public double DefaultDepthRatio { get; set; } = 1.4;
+        /// <summary>依 CAD 一併放置結構柱（柱在梁所在樓層之下一層到此樓層）</summary>
+        public bool PlaceColumns { get; set; } = true;
+        /// <summary>柱的 CAD 圖層；空白時自動判定</summary>
+        public List<string> ColumnLayers { get; set; } = new List<string>();
+        /// <summary>只讀取指定的連結 CAD；空白表示目前視圖中全部連結 CAD</summary>
+        public List<long> ImportIds { get; set; } = new List<long>();
+    }
+
+    /// <summary>
+    /// 自動建梁結果統計
+    /// </summary>
+    public class CadBeamCreationResult
+    {
+        public List<string> UsedLayers { get; set; } = new List<string>();
+        public bool LayersAutoDetected { get; set; }
+        public string Level { get; set; }
+        public bool CroppedToView { get; set; }
+        public int BeamsDetected { get; set; }
+        public int BeamsPlaced { get; set; }
+        /// <summary>有標註、沿用同線標註、無標註（梁深採預設）的梁數</summary>
+        public int Labeled { get; set; }
+        public int LabelInherited { get; set; }
+        public int Unlabeled { get; set; }
+        /// <summary>專案中沒有相符鋼梁類型而略過的鋼梁數</summary>
+        public int SkippedSteel { get; set; }
+        public int ColumnsPlaced { get; set; }
+        public List<string> ColumnLayers { get; set; } = new List<string>();
+        public Dictionary<string, int> TypeCounts { get; set; } = new Dictionary<string, int>();
+        public List<string> CreatedTypes { get; set; } = new List<string>();
+        public int Failed { get; set; }
+        public List<string> Notes { get; set; } = new List<string>();
+        public List<string> Errors { get; set; } = new List<string>();
+        public List<long> ElementIds { get; set; } = new List<long>();
     }
 
     /// <summary>
@@ -60,6 +137,43 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
     {
         public int CreatedCount { get; set; }
         public List<long> WallIds { get; set; } = new List<long>();
+        /// <summary>實際使用的 CAD 圖層</summary>
+        public List<string> UsedLayers { get; set; } = new List<string>();
+        public bool LayersAutoDetected { get; set; }
+        public string BaseLevel { get; set; }
+        public string TopLevel { get; set; }
+        /// <summary>各牆類型建立的牆數</summary>
+        public Dictionary<string, int> WallTypeCounts { get; set; } = new Dictionary<string, int>();
+        /// <summary>CAD 牆厚與所用牆類型厚度相差超過 10 mm 的牆數（自動選類型時）</summary>
+        public int ThicknessMismatches { get; set; }
+        /// <summary>已放置的單開門、雙開門、推拉門、窗數量</summary>
+        public int DoorsPlaced { get; set; }
+        public int DoubleDoorsPlaced { get; set; }
+        public int SlidingDoorsPlaced { get; set; }
+        public int WindowsPlaced { get; set; }
+        /// <summary>牆上有缺口但無法判斷為門或窗的位置（未放置），座標 mm</summary>
+        public List<string> UnknownOpenings { get; set; } = new List<string>();
+        /// <summary>判斷為門窗但放置失敗的數量</summary>
+        public int OpeningFailures { get; set; }
+        /// <summary>各門窗類型放置數量</summary>
+        public Dictionary<string, int> OpeningTypeCounts { get; set; } = new Dictionary<string, int>();
+        /// <summary>為符合 CAD 開口寬度而新建的門窗類型</summary>
+        public List<string> CreatedOpeningTypes { get; set; } = new List<string>();
+        /// <summary>門的開啟方向無法自動調整時的說明</summary>
+        public string OrientationNote { get; set; }
+        /// <summary>結構柱</summary>
+        public int ColumnsPlaced { get; set; }
+        public List<string> ColumnLayers { get; set; } = new List<string>();
+        /// <summary>樓板：建立數、略過的電梯井／管道間與樓梯、失敗數</summary>
+        public int FloorsCreated { get; set; }
+        public int FloorsSkippedShafts { get; set; }
+        public int FloorsSkippedStairs { get; set; }
+        public int FloorFailures { get; set; }
+        public string FloorType { get; set; }
+        /// <summary>柱、樓板的類型統計與新建類型、族群載入等說明</summary>
+        public Dictionary<string, int> StructureTypeCounts { get; set; } = new Dictionary<string, int>();
+        public List<string> CreatedStructureTypes { get; set; } = new List<string>();
+        public List<string> StructureNotes { get; set; } = new List<string>();
         public int ClosedRegions { get; set; }
         public int JoinedOpenings { get; set; }
         public int CenterLines { get; set; }
@@ -82,6 +196,14 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public List<CadLayerInfo> Layers { get; set; } = new List<CadLayerInfo>();
         public List<CadWallTypeInfo> WallTypes { get; set; } = new List<CadWallTypeInfo>();
         public List<CadLevelInfo> Levels { get; set; } = new List<CadLevelInfo>();
+        /// <summary>專案中的樓板類型（含預設者）</summary>
+        public List<string> FloorTypes { get; set; } = new List<string>();
+        public string DefaultFloorType { get; set; }
+        /// <summary>依雙線特徵自動判定的牆線圖層（create_walls_from_cad 省略 layers 時使用，另加全部開口圖層）</summary>
+        public List<string> RecommendedLayers { get; set; } = new List<string>();
+        /// <summary>省略樓層時的預設基準樓層（目前平面視圖的樓層）與頂部樓層（上一層）</summary>
+        public string DefaultBaseLevel { get; set; }
+        public string DefaultTopLevel { get; set; }
     }
 
     public class CadImportInfo
@@ -96,6 +218,18 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Models
         public int LineCount { get; set; }
         public int UnsupportedCurveCount { get; set; }
         public bool IsOpeningLayer { get; set; }
+        /// <summary>有平行雙線夥伴（間距在牆厚範圍內且互相重疊）的線段長度比例 0～1</summary>
+        public double PairedRatio { get; set; }
+        /// <summary>有雙線夥伴的線段總長（m）</summary>
+        public double PairedLength { get; set; }
+        /// <summary>常見雙線間距（mm），由多到少，可視為牆厚</summary>
+        public List<double> TypicalThicknesses { get; set; } = new List<double>();
+        /// <summary>依雙線特徵與圖層名稱判定為牆線圖層</summary>
+        public bool Recommended { get; set; }
+        /// <summary>柱形狀（封閉小矩形或圓）數量</summary>
+        public int ColumnShapes { get; set; }
+        /// <summary>圖層名稱像梁圖層（B、J、SB、SJ、BEAM、梁、樑…）</summary>
+        public bool BeamLikeName { get; set; }
     }
 
     public class CadWallTypeInfo

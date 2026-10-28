@@ -18,6 +18,10 @@ namespace revit_mcp_plugin.Core
         {
             chat = new ChatDockablePane();
             application.RegisterDockablePane(ChatDockablePane.Id, "中興 AI 助手", chat);
+            // Revit 還原上次開啟的面板（或從首頁開啟專案後重新顯示面板）時不一定觸發 DockableFrameVisibilityChanged，
+            // 以面板實際顯示為準啟動 MCP 服務，不需再開關一次 AI助手
+            // Restored panes don't always raise DockableFrameVisibilityChanged; start the service when the panel actually becomes visible.
+            chat.Panel.IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) StartServiceIfReady(); };
 
             // Revit 啟動完成後載入所有已安裝命令；MCP 服務則隨 AI助手面板開啟／關閉而啟動／停止
             // Load every installed command once Revit is ready; the MCP service follows the AI assistant pane.
@@ -36,7 +40,7 @@ namespace revit_mcp_plugin.Core
             {
                 var uiApp = new UIApplication(sender as Autodesk.Revit.ApplicationServices.Application);
                 SocketService.Instance.Initialize(uiApp);
-                if (paneShown || uiApp.GetDockablePane(ChatDockablePane.Id).IsShown())
+                if (paneShown || chat.Panel.IsVisible || uiApp.GetDockablePane(ChatDockablePane.Id).IsShown())
                     SocketService.Instance.Start();
             }
             catch (Exception ex)
@@ -44,6 +48,19 @@ namespace revit_mcp_plugin.Core
                 // 失敗時按 AI助手 會再嘗試初始化
                 // If this fails, clicking the AI assistant button initializes again.
                 System.Diagnostics.Trace.WriteLine("Sinotech MCP initialization failed: " + ex.Message);
+            }
+        }
+
+        private static void StartServiceIfReady()
+        {
+            try
+            {
+                var service = SocketService.Instance;
+                if (service.IsInitialized) service.Start();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("Sinotech MCP service start failed: " + ex.Message);
             }
         }
 

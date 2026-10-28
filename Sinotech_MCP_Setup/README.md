@@ -39,7 +39,19 @@ cd C:\Prj\Revit\Sinotech_MCP
       runtime\build\…、runtime\node_modules\…、runtime\node\node.exe
 ```
 
-安裝後在 Windows「設定 → 應用程式」搜尋 `Sinotech_MCP` 可解除安裝。**完整解除安裝**時會一併刪除該年份的整個 `Sinotech_MCP\<年份>` 資料夾（包含執行時產生的 `Logs`、`runtime\revit-data.db`）以及 `%LOCALAPPDATA%\Sinotech\McpChat\<年份>` 的 AI助手登入／金鑰資料；空的上層資料夾也會移除，其他年份與其他外掛不受影響。**升級**（安裝較新版本）時不會執行這項清理，登入資料會保留。請先關閉 Revit 再解除安裝，執行中的檔案無法刪除。
+安裝後在 Windows「設定 → 應用程式」搜尋 `Sinotech_MCP` 可解除安裝。**完整解除安裝**時會一併刪除該年份的整個 `Sinotech_MCP\<年份>` 資料夾（包含執行時產生的 `Logs`、`runtime\revit-data.db`）；空的上層資料夾也會移除，其他年份與其他外掛不受影響。**升級**（安裝較新版本）時不會執行這項清理。請先關閉 Revit 再解除安裝，執行中的檔案無法刪除。
+
+### AI助手登入資料
+
+登入資料存在 `%LOCALAPPDATA%\Sinotech\McpChat\<年份>`，只屬於目前的 Windows 帳號：
+
+- `codex\auth.json`：Codex（ChatGPT 帳號）登入權杖，由 Codex 管理。
+- `ui.settings.json`：引擎、模型選擇與 Claude／Gemini API Key（以 Windows DPAPI 加密，只有同一個 Windows 帳號能解密）。
+
+自 1.1.6 起，**解除安裝不會刪除登入資料**，重新安裝或升級後不需再登入；要清除請在 AI助手面板按「登出／清除金鑰」。
+（1.1.5 以前的安裝檔在完整解除安裝時會刪除登入資料；要保留登入，請直接安裝新版覆蓋升級，不要先解除安裝。）
+
+這個資料夾不在打包來源內。`Verify-Msi.ps1` 會擋下 `auth.json`、`ui.settings.json` 等檔名，並把 MSI 內每個檔案的實際內容與打包者本機的登入權杖、金鑰逐一比對，只要出現就讓建置失敗（只回報檔名，不輸出秘密）。
 
 ## 注意
 

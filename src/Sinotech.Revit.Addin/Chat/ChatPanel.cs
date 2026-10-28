@@ -197,6 +197,8 @@ namespace revit_mcp_plugin.Chat
                 model.Items.Clear();
                 foreach (var entry in response["models"] ?? new JArray()) model.Items.Add(entry.Value<string>("id"));
                 SetModel(response.Value<string>("selectedModel") ?? wanted);
+                // 取得模型清單後若仍未選擇，預設選第一個
+                if (model.SelectedIndex < 0 && model.Items.Count > 0) model.SelectedIndex = 0;
                 SavePreferences();
                 status.Text = response.Value<string>("status") + " 請選擇模型後送出。";
             }
@@ -229,7 +231,9 @@ namespace revit_mcp_plugin.Chat
         {
             if (busy || launch == null || string.IsNullOrWhiteSpace(input.Text)) return;
             if (string.IsNullOrWhiteSpace(SelectedModel)) { status.Text = "請先連線並選擇模型。"; return; }
-            if (!SocketService.Instance.IsRunning) { status.Text = "Revit MCP 服務未啟動：請按功能區「AI助手」關閉面板後再按一次重新開啟；若仍失敗，可能是埠號 8080 被其他程式（或另一個 Revit）佔用，請查看 Logs。"; return; }
+            // 面板開著就應該有服務；若尚未啟動先自動啟動一次
+            if (!SocketService.Instance.IsRunning && SocketService.Instance.IsInitialized) SocketService.Instance.Start();
+            if (!SocketService.Instance.IsRunning) { status.Text = "Revit MCP 服務無法啟動：可能是埠號 8080 被其他程式（或另一個 Revit）佔用，請查看 Logs；Revit 剛啟動時請等載入完成再試。"; return; }
             var text = input.Text.Trim();
             SetBusy(true);
             try

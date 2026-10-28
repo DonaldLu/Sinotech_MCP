@@ -3,6 +3,18 @@ $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $version=(Get-Content (Join-Path $root 'server/package.json') -Raw | ConvertFrom-Json).version
 $installer=New-Object -ComObject WindowsInstaller.Installer
+# 本機 AI助手／Codex 登入檔中的長字串值（權杖、加密後的金鑰），用來確認沒有被打包
+function Get-SecretValues {
+ $sources=@(Get-ChildItem -Path "$env:LOCALAPPDATA/Sinotech/McpChat/*/codex/auth.json","$env:LOCALAPPDATA/Sinotech/McpChat/*/ui.settings.json","$env:USERPROFILE/.codex/auth.json" -File -ErrorAction SilentlyContinue)
+ $values=New-Object System.Collections.Generic.HashSet[string]
+ function Walk($node){
+  if($node -is [string]){if($node.Length -ge 24){[void]$values.Add($node)};return}
+  if($node -is [System.Collections.IEnumerable]){foreach($item in $node){Walk $item};return}
+  if($node -is [System.Management.Automation.PSCustomObject]){foreach($p in $node.PSObject.Properties){Walk $p.Value}}
+ }
+ foreach($source in $sources){try{Walk (Get-Content -LiteralPath $source.FullName -Raw | ConvertFrom-Json)}catch{throw "Cannot read local credential file for leak check: $($source.FullName)"}}
+ return $values
+}
 foreach($year in $RevitVersion){
  $msi=Join-Path $PSScriptRoot "Release/Sinotech_MCP_Revit${year}_$version.msi"
  if(!(Test-Path -LiteralPath $msi)){throw "Missing MSI: $msi"}
@@ -30,10 +42,12 @@ foreach($year in $RevitVersion){
  if(!($actions | Where-Object {$_.Source -eq 'TARGETDIR' -and $_.Target -eq $payloadRoot})){throw 'Incorrect payload root'}
  if(!($actions | Where-Object {$_.Source -eq 'SINOTECHREGISTERDIR' -and $_.Target -eq $registrationRoot})){throw 'Incorrect registration root'}
  # 解除安裝清理只能在完整移除時執行，升級移除舊版時不可執行
- foreach($cleanupAction in @('SINOTECH_CLEAN_APP','SINOTECH_CLEAN_CHAT')){
+ foreach($cleanupAction in @('SINOTECH_CLEAN_APP')){
   $step=$sequence | Where-Object {$_.Action -eq $cleanupAction}
   if(!$step -or $step.Condition -notmatch 'REMOVE~="ALL"' -or $step.Condition -notmatch 'NOT UPGRADINGPRODUCTCODE'){throw "Uninstall cleanup missing or unsafe: $cleanupAction"}
  }
+ # AI助手登入資料（McpChat）在解除安裝時保留，不可有任何動作刪除它
+ if(@(Rows 'SELECT `Action`,`Target` FROM `CustomAction`' @('Action','Target')) | Where-Object {$_.Target -match 'McpChat'}){throw 'Uninstall must keep the AI assistant login data'}
  if(!(@(Rows 'SELECT `Action`,`Target` FROM `CustomAction`' @('Action','Target')) | Where-Object {$_.Action -eq 'SINOTECH_CLEAN_APP' -and $_.Target.Contains("rmdir /s /q `"[TARGETDIR]$year`"")})){throw 'Uninstall cleanup targets the wrong folder'}
  $directories=@{};foreach($r in (Rows 'SELECT `Directory`,`Directory_Parent`,`DefaultDir` FROM `Directory`' @('Id','Parent','Name'))){$directories[$r.Id]=$r}
  foreach($requiredRoot in @('TARGETDIR','SINOTECHREGISTERDIR')){if(!$directories.ContainsKey($requiredRoot)){throw "Required MSI directory is missing: $requiredRoot"}}
@@ -52,7 +66,7 @@ foreach($year in $RevitVersion){
  $actual=@{}
  foreach($file in $files){
   $name=($file.Name.Split('|') | Select-Object -Last 1)
-  if($name -match '^(RevitAPI.*\.dll|commandRegistry.json|auth.json)$'){throw "Forbidden MSI file: $name"}
+  if($name -match '^(RevitAPI.*\.dll|commandRegistry.json|auth.json|ui.settings.json|installation_id|\.credentials.json)$'){throw "Forbidden MSI file: $name"}
   $dir=RelativeDirectory $components[$file.Component]
   $relative=(@($dir.relative,$name) | Where-Object {$_}) -join '/'
   if($dir.root -eq 'SINOTECHREGISTERDIR'){
@@ -83,6 +97,15 @@ foreach($year in $RevitVersion){
   $stored=Join-Path $expanded $actual["$year/$($file.relative)"]
   if(!(Test-Path -LiteralPath $stored) -or (Get-FileHash -LiteralPath $stored -Algorithm SHA256).Hash -ne $file.sha256){throw "MSI content mismatch: $($file.relative)"}
   if($file.relative -match '^[^/]+\.dll$'){Copy-Item -LiteralPath $stored -Destination (Join-Path $verified $file.relative)}
+ }
+ # 打包者本機的登入權杖與 API 金鑰絕不可出現在 MSI 內：逐檔比對實際內容（只回報檔名，不輸出秘密）
+ # The packager's own login tokens and API keys must never be inside the MSI; scan the extracted bytes.
+ $secrets=@(Get-SecretValues)
+ if($secrets.Count -gt 0){
+  foreach($stored in Get-ChildItem -LiteralPath $expanded -File){
+   $text=[Text.Encoding]::GetEncoding(28591).GetString([IO.File]::ReadAllBytes($stored.FullName))
+   foreach($secret in $secrets){if($text.Contains($secret)){throw "Local credential found inside MSI file: $($stored.Name)"}}
+  }
  }
  [xml]$manifest=Get-Content (Join-Path $PSScriptRoot "registration/$year/Sinotech_MCP.addin") -Raw
  $manifestFile=$files | Where-Object {($_.Name.Split('|') | Select-Object -Last 1) -eq 'Sinotech_MCP.addin'}

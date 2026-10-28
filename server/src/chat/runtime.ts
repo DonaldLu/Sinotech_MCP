@@ -38,8 +38,9 @@ export class ChatRuntime {
     const status = await this.provider.status();
     let models: ModelOption[] = [];
     if ((this.provider instanceof CodexProvider && this.provider.authenticated) || (settings.provider !== "codex" && settings.apiKey)) models = await this.provider.models();
-    if (settings.provider !== "codex" && settings.apiKey) {
-      if (!models.length) throw new Error("此 API Key 的清單未提供建議的文字／工具模型；請確認專案權限。取得清單不代表生成配額足夠。");
+    if (settings.provider !== "codex" && settings.apiKey && !models.length) throw new Error("此 API Key 的清單未提供建議的文字／工具模型；請確認專案權限。取得清單不代表生成配額足夠。");
+    // 取得模型清單後，未選或已不在清單中的模型改用清單第一個（Codex 登入後也一樣）
+    if (models.length) {
       const requested = settings.model?.replace(/^models\//, "");
       settings.model = models.some(model => model.id === requested) ? requested : models[0].id;
     }

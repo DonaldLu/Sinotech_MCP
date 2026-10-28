@@ -19,6 +19,14 @@ New-Item -ItemType Directory -Path $payload -Force | Out-Null
 # Per-user state (Logs, commandRegistry.json) is created at runtime and must not be shipped.
 Get-ChildItem -LiteralPath $package -Force | Where-Object { $_.Name -ne 'Logs' -and $_.Extension -ne '.pdb' } | Copy-Item -Destination $payload -Recurse -Force
 Get-ChildItem -LiteralPath $payload -Recurse -File | Where-Object { $_.Extension -eq '.pdb' -or $_.Name -eq 'commandRegistry.json' } | Remove-Item -Force
+# net8.0-windows10.0.19041 目標框架（RevitMCPSDK 要求）會自動附上 Windows SDK 投影（每份約 24 MB，外掛與兩個命令集各一份），
+# 程式並未使用 WinRT API；只要沒有其他組件參考它們就不打包。
+# The Windows SDK projection is implicitly copied by the TFM but unused; drop it unless some assembly references it.
+$winrt=@('Microsoft.Windows.SDK.NET.dll','WinRT.Runtime.dll')
+$referenced=Get-ChildItem -LiteralPath $payload -Recurse -File -Filter *.dll | Where-Object { $winrt -notcontains $_.Name } |
+ Where-Object { [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($_.FullName)).Contains('Microsoft.Windows.SDK.NET') }
+if($referenced){Write-Warning ("Windows SDK projection kept; referenced by: "+(($referenced | ForEach-Object Name) -join ', '))}
+else{Get-ChildItem -LiteralPath $payload -Recurse -File | Where-Object { $winrt -contains $_.Name } | Remove-Item -Force}
 $runtime=Join-Path $payload 'runtime'
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $server 'build') -Destination $runtime -Recurse -Force

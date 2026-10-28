@@ -42,7 +42,7 @@ claude mcp add sinotech-mcp -- node C:\Prj\Revit\Sinotech_MCP\server\build\index
 | `src/Sinotech.Revit.Extensions/` | C# 命令集，編譯為 `SinotechExtensions.dll`，部署到 `Commands\SinotechExtensions\` |
 | `server/src/tools/extensions/` | 對應的 MCP 工具 |
 
-目前功能：**自動建牆**（移植自 TYBIM 自動翻牆）。在 AI助手中輸入「用連結的 CAD 自動建牆」，AI 會先列出 CAD 圖層、牆類型與樓層讓你選擇，確認後再建牆。詳見 [`src/Sinotech.Revit.Extensions/README.md`](src/Sinotech.Revit.Extensions/README.md)。
+目前功能：**自動建牆**（移植自 TYBIM 自動翻牆）。在平面視圖連結 DWG 後，於 AI助手中輸入「用連結的 CAD 自動建牆」，AI 會依線段的雙線特徵自行判定牆線與門窗圖層、依 CAD 牆厚選用最接近的牆類型，在確認視窗按確認後建牆。詳見 [`src/Sinotech.Revit.Extensions/README.md`](src/Sinotech.Revit.Extensions/README.md)。
 
 ## 授權
 

@@ -14,8 +14,13 @@
       "assemblyPath": "SinotechExtensions.dll"
     },
     {
+      "commandName": "create_beams_from_cad",
+      "description": "自動建梁：依結構平面圖的梁雙線與標註建立梁（可一併放置結構柱）",
+      "assemblyPath": "SinotechExtensions.dll"
+    },
+    {
       "commandName": "create_walls_from_cad",
-      "description": "自動建牆：依所選 CAD 圖層的封閉雙線區域求中心線建牆",
+      "description": "自動建牆：依 CAD 建牆，並放置門窗、結構柱，每個房間建樓板",
       "assemblyPath": "SinotechExtensions.dll"
     }
   ]

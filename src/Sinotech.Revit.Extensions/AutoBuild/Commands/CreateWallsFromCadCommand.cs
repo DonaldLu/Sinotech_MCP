@@ -34,20 +34,15 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Commands
             {
                 try
                 {
-                    var info = parameters?.ToObject<CadWallCreationInfo>();
-                    if (info?.Layers == null || info.Layers.Count == 0)
-                        throw new ArgumentException("請至少指定一個 CAD 圖層（layers）");
-                    if (string.IsNullOrWhiteSpace(info.WallTypeName) && !info.WallTypeId.HasValue)
-                        throw new ArgumentException("請指定牆類型（wallTypeName 或 wallTypeId）");
-                    if (string.IsNullOrWhiteSpace(info.BaseLevel) || string.IsNullOrWhiteSpace(info.TopLevel))
-                        throw new ArgumentException("請指定基準樓層（baseLevel）與頂部樓層（topLevel）");
-                    if (info.BaseLevel == info.TopLevel)
+                    // 圖層、牆類型、樓層皆可省略，由 Revit 端自動判定（見 CadWallCreationInfo）
+                    var info = parameters?.ToObject<CadWallCreationInfo>() ?? new CadWallCreationInfo();
+                    if (!string.IsNullOrWhiteSpace(info.BaseLevel) && info.BaseLevel == info.TopLevel)
                         throw new ArgumentException("基準樓層與頂部樓層相同，請重新選擇");
                     if (info.MaxThickness <= 0) info.MaxThickness = 1000;
 
                     _handler.SetParameters(info);
 
-                    if (RaiseAndWaitForCompletion(60000)) // 逾時 60 秒
+                    if (RaiseAndWaitForCompletion(110000)) // 逾時 110 秒（含門窗、柱、樓板；MCP 服務端 2 分鐘逾時）
                     {
                         return _handler.Result;
                     }

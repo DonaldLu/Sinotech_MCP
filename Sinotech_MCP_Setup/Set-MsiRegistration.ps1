@@ -22,7 +22,8 @@ foreach($entry in @{ARPNOMODIFY='1';ARPNOREPAIR='1';MSIINSTALLPERUSER='1'}.GetEn
  Sql "DELETE FROM ``Property`` WHERE ``Property``='$($entry.Key)'"
  Sql "INSERT INTO ``Property`` (``Property``,``Value``) VALUES ('$($entry.Key)','$($entry.Value)')"
 }
-# 完整解除安裝時清除執行期間產生的檔案（Logs、commandRegistry.json、revit-data.db 等）與 AI助手登入資料。
+# 完整解除安裝時清除執行期間產生的檔案（Logs、commandRegistry.json、revit-data.db 等）。
+# AI助手登入資料（%LOCALAPPDATA%\Sinotech\McpChat\<年份>）刻意保留，重新安裝後不需再登入；要清除請在面板按「登出／清除金鑰」。
 # MSI 只會移除自己安裝的檔案，其餘檔案會讓資料夾殘留。
 # 升級時（UPGRADINGPRODUCTCODE）舊版也會被「解除安裝」，此時不可執行，否則會刪掉新版檔案與使用者設定。
 # Clean runtime-generated files on full uninstall only; never during the old product's removal in an upgrade.
@@ -34,7 +35,6 @@ if($null -eq $directoryRecord){
 }
 $cleanup=[ordered]@{
  SINOTECH_CLEAN_APP="""[SystemFolder]cmd.exe"" /d /c rmdir /s /q ""[TARGETDIR]$RevitVersion"" & rmdir ""[TARGETDIR]"""
- SINOTECH_CLEAN_CHAT="""[SystemFolder]cmd.exe"" /d /c rmdir /s /q ""[LocalAppDataFolder]Sinotech\McpChat\$RevitVersion"" & rmdir ""[LocalAppDataFolder]Sinotech\McpChat"" & rmdir ""[LocalAppDataFolder]Sinotech"""
 }
 $sequence=3550 # RemoveFiles (3500) 之後、RemoveFolders (3600) 之前
 foreach($action in $cleanup.GetEnumerator()){

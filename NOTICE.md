@@ -7,7 +7,8 @@
 
 主要相依套件：Nice3point.Revit.*（MIT）、Newtonsoft.Json（MIT）、
 Microsoft.CodeAnalysis.CSharp（MIT）、@modelcontextprotocol/sdk（MIT）、ws（MIT）、zod（MIT）、
-better-sqlite3（MIT）。RevitMCPSDK 為 NuGet 相依，發佈前請確認其授權條款。
+better-sqlite3（MIT）、ACadSharp（MIT，https://github.com/DomCR/ACadSharp，自動建梁讀取 DWG 標註文字用）。
+RevitMCPSDK 為 NuGet 相依，發佈前請確認其授權條款。
 
 ## 自行開發部分（不適用 MIT 授權）
 

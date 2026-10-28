@@ -37,6 +37,13 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             public List<Segment> CenterLines = new List<Segment>();
             public int OpenEdges;
             public int JoinedOpenings;
+            // 由開口圖層補齊的牆缺口（中心線上的起訖點與牆厚），供放置門窗使用
+            public List<Gap> Gaps = new List<Gap>();
+        }
+        internal class Gap
+        {
+            public Point Start, End;
+            public double Width;
         }
         internal static bool IsOpeningLayer(string name)
         {
@@ -55,6 +62,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             // 部分 CAD 圖面以開口圖層的線條來封閉牆輪廓本身。
             if (result.Boundaries.Count == 0) return Build(walls.Concat(openings), tolerance, maxThickness);
             var footprints = new List<Segment>();
+            var gaps = new List<Gap>();
             int joined = 0;
             for (int i = 0; i < result.CenterLines.Count; i++)
                 for (int j = i + 1; j < result.CenterLines.Count; j++)
@@ -79,6 +87,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild
                     if (width <= tolerance || width > maxThickness || Math.Abs(width - otherWidth) > tolerance) continue;
                     double gap = LengthOf(end - start);
                     if (!OpeningCoversGap(openings, start, d, gap, width, tolerance)) continue;
+                    gaps.Add(new Gap { Start = start, End = end, Width = width });
                     // 在門窗邊框處稍微重疊，以吸收 CAD 端點的捨入誤差。
                     start = start - d * (tolerance * .5); end = end + d * (tolerance * .5);
                     Point p = start + n * (width / 2), q = end + n * (width / 2);
@@ -89,11 +98,29 @@ namespace Sinotech.Revit.Extensions.AutoBuild
             if (joined == 0) return result;
             result = Build(walls.Concat(footprints), tolerance, maxThickness);
             result.JoinedOpenings = joined;
+            result.Gaps = gaps;
             return result;
         }
-        private static double Thickness(Segment axis, List<List<Point>> loops, double tolerance)
+        // 線段圍出的封閉多邊形（已簡化共線頂點），供判斷柱等封閉輪廓
+        internal static List<List<Point>> ClosedLoops(IEnumerable<Segment> source, double tolerance)
         {
-            Point center = (axis.A + axis.B) * .5, direction = Direction(axis), normal = Normal(direction);
+            int open;
+            return Faces(Merge(source, tolerance), tolerance, out open).Select(p => SimplifyBoundary(p, tolerance)).ToList();
+        }
+        // 中心線兩側對稱的牆厚；無法判定時回傳 0
+        // 中點可能落在轉角或接頭處而量不到，依序改在其他位置量測
+        internal static double Thickness(Segment axis, List<List<Point>> loops, double tolerance)
+        {
+            foreach (double t in new[] { .5, .25, .75, .1, .9 })
+            {
+                double width = ThicknessAt(axis, axis.A + (axis.B - axis.A) * t, loops, tolerance);
+                if (width > 0) return width;
+            }
+            return 0;
+        }
+        private static double ThicknessAt(Segment axis, Point center, List<List<Point>> loops, double tolerance)
+        {
+            Point direction = Direction(axis), normal = Normal(direction);
             double left = double.MaxValue, right = double.MaxValue;
             foreach (var loop in loops)
                 for (int i = 0; i < loop.Count; i++)

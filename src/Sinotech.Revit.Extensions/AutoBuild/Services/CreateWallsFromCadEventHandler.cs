@@ -52,30 +52,51 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
         {
             Document doc = uiapp.ActiveUIDocument.Document;
             var levels = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().OrderBy(l => l.Elevation).ToList();
-            Level bottom = levels.FirstOrDefault(l => l.Name == Info.BaseLevel);
-            Level top = levels.FirstOrDefault(l => l.Name == Info.TopLevel);
-            WallType type = FindWallType(doc);
-            if (type == null || type.Kind != WallKind.Basic)
-                return Fail("找不到指定的基本牆類型，請先用 get_cad_layers 查詢可用的牆類型。");
+            // 省略樓層時：基準為目前平面視圖的樓層，頂部為基準的上一層
+            CadLayerReader.DefaultLevels(doc, out Level defaultBase, out _);
+            Level bottom = string.IsNullOrWhiteSpace(Info.BaseLevel) ? defaultBase : levels.FirstOrDefault(l => l.Name == Info.BaseLevel);
+            Level top = !string.IsNullOrWhiteSpace(Info.TopLevel) ? levels.FirstOrDefault(l => l.Name == Info.TopLevel) :
+                bottom == null ? null : levels.FirstOrDefault(l => l.Elevation > bottom.Elevation + 1e-6);
             if (bottom == null || top == null || top.Elevation <= bottom.Elevation)
-                return Fail("請指定有效的基準／頂部樓層，且頂部樓層須高於基準樓層。");
+                return Fail("請指定有效的基準／頂部樓層，且頂部樓層須高於基準樓層（省略時使用目前平面視圖的樓層與其上一層）。");
+            // 未指定牆類型時，每道牆依 CAD 牆厚選用最接近的基本牆類型
+            var basicTypes = new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>()
+                .Where(t => t.Kind == WallKind.Basic).ToList();
+            bool autoType = string.IsNullOrWhiteSpace(Info.WallTypeName) && !Info.WallTypeId.HasValue;
+            WallType fixedType = autoType ? null : FindWallType(doc);
+            if (autoType ? basicTypes.Count == 0 : fixedType == null || fixedType.Kind != WallKind.Basic)
+                return Fail("找不到指定的基本牆類型，請先用 get_cad_layers 查詢可用的牆類型。");
 
             var reader = new CadLayerReader(doc).Read(Info.ImportIds);
             if (reader.Imports.Count == 0)
                 return Fail("目前視圖沒有連結的 CAD，請切換到含有 DWG 連結的平面視圖。");
-            var selected = new HashSet<string>(Info.Layers);
+            double maxThickness = Info.MaxThickness / 304.8;
+            bool autoLayers = Info.Layers == null || Info.Layers.Count == 0;
+            // 省略圖層時：依雙線特徵判定的牆線圖層，加上全部開口圖層
+            var selected = new HashSet<string>(autoLayers
+                ? reader.AnalyzeLayers(maxThickness).Where(a => a.Recommended).Select(a => a.Layer)
+                : Info.Layers);
+            if (autoLayers && selected.Count == 0)
+                return Fail("無法自動判定牆線圖層（沒有圖層具有足夠的平行雙線）。請用 get_cad_layers 查看各圖層統計後指定 layers。");
+            if (autoLayers) selected.UnionWith(reader.Layers.Where(WallRegionGeometry.IsOpeningLayer));
             var missing = selected.Where(l => !reader.Layers.Contains(l)).ToList();
             if (missing.Count == selected.Count)
                 return Fail("連結 CAD 中找不到指定的圖層：" + string.Join("、", missing));
 
             double tolerance = 1 / 304.8; // 1 mm
             double minimumLength = Math.Max(uiapp.Application.ShortCurveTolerance, tolerance);
-            double maxThickness = Info.MaxThickness / 304.8;
             var stats = new CadWallCreationResult
             {
-                UnsupportedCurves = reader.UnsupportedCurves.Where(p => selected.Contains(p.Key)).Sum(p => p.Value)
+                UnsupportedCurves = reader.UnsupportedCurves.Where(p => selected.Contains(p.Key)).Sum(p => p.Value),
+                UsedLayers = selected.Where(reader.Layers.Contains).OrderBy(l => l).ToList(),
+                LayersAutoDetected = autoLayers,
+                BaseLevel = bottom.Name,
+                TopLevel = top.Name
             };
-            var centerLines = new List<WallRegionGeometry.Segment>();
+            // 中心線連同其 CAD 牆厚（無法判定時為 0）
+            var centerLines = new List<Tuple<WallRegionGeometry.Segment, double>>();
+            // 開口圖層已補齊的牆缺口（放置門窗用）
+            var gaps = new List<WallRegionGeometry.Gap>();
             // 不同的 DWG 連結分開重建區域，避免互相干擾。
             foreach (var import in reader.Lines.Where(l => selected.Contains(l.Layer)).GroupBy(l => l.ImportId))
             {
@@ -109,15 +130,56 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                     }
                     catch (Exception) { valid = false; stats.InvalidLoops++; }
                 }
-                if (valid) centerLines.AddRange(geometry.CenterLines);
+                if (valid)
+                {
+                    centerLines.AddRange(geometry.CenterLines.Select(s =>
+                        Tuple.Create(s, WallRegionGeometry.Thickness(s, geometry.Boundaries, tolerance))));
+                    gaps.AddRange(geometry.Gaps);
+                }
             }
-            centerLines = WallRegionGeometry.Merge(centerLines, tolerance).Where(s => s.Length > minimumLength).ToList();
+            // 相同牆厚的中心線才合併，保留每道牆的厚度
+            centerLines = centerLines.GroupBy(c => Math.Round(c.Item2 * 304.8))
+                .SelectMany(g => WallRegionGeometry.Merge(g.Select(c => c.Item1), tolerance).Select(s => Tuple.Create(s, g.First().Item2)))
+                .Where(c => c.Item1.Length > minimumLength).ToList();
+            // 門窗：依牆中心線的缺口與全部圖層的線、圓弧判斷（不看圖層名稱），門窗缺口補成連續牆
+            var openingList = new List<OpeningDetector.Opening>();
+            // 全部圖層的水平直線（門窗、柱、樓板判斷用）
+            var layerLines = reader.Lines.Where(l => Math.Abs(l.Start.Z - l.End.Z) <= tolerance)
+                .Select(l => new KeyValuePair<string, WallRegionGeometry.Segment>(l.Layer,
+                    new WallRegionGeometry.Segment(new WallRegionGeometry.Point(l.Start.X, l.Start.Y), new WallRegionGeometry.Point(l.End.X, l.End.Y))))
+                .Where(l => l.Value.Length > tolerance).ToList();
+            var allLines = layerLines.Select(l => l.Value).ToList();
+            if (Info.PlaceOpenings && centerLines.Count > 0)
+            {
+                var arcs = reader.Arcs.Select(a => new OpeningDetector.CadArc
+                {
+                    Center = new WallRegionGeometry.Point(a.Center.X, a.Center.Y),
+                    Mid = new WallRegionGeometry.Point(a.Mid.X, a.Mid.Y),
+                    Radius = a.Radius
+                }).ToList();
+                var detected = OpeningDetector.Detect(centerLines, gaps, allLines, arcs, tolerance, 400 / 304.8, 3600 / 304.8);
+                openingList = detected.Openings;
+                centerLines = detected.CenterLines.Where(c => c.Item1.Length > minimumLength).ToList();
+            }
             stats.CenterLines = centerLines.Count;
+            // 結構柱：封閉小矩形或圓、尺寸重複且貼著牆的圖層（或指定的圖層）
+            var columns = new List<StructureDetector.Column>();
+            if (Info.PlaceColumns && centerLines.Count > 0)
+            {
+                var circles = reader.Circles.Select(c => new KeyValuePair<string, Tuple<WallRegionGeometry.Point, double>>(c.Layer,
+                    Tuple.Create(new WallRegionGeometry.Point(c.Center.X, c.Center.Y), c.Radius)));
+                var found = StructureDetector.FindColumns(layerLines, circles, tolerance, centerLines.Select(c => c.Item1).ToList());
+                var chosen = Info.ColumnLayers != null && Info.ColumnLayers.Count > 0
+                    ? found.Where(f => Info.ColumnLayers.Contains(f.Layer)).ToList() : found.Where(f => f.Recommended).ToList();
+                stats.ColumnLayers = chosen.Select(f => f.Layer).OrderBy(l => l).ToList();
+                columns = StructureDetector.Distinct(chosen.SelectMany(f => f.Columns), tolerance);
+            }
             if (centerLines.Count == 0)
                 return new ExtensionResult<CadWallCreationResult>
                 {
                     Success = false,
-                    Message = $"所選圖層未找到可建牆的封閉雙線區域。請確認邊界封閉、牆厚不超過 {Info.MaxThickness} mm，且為直線輪廓。\n" +
+                    Message = (autoLayers ? "自動判定的圖層（" + string.Join("、", stats.UsedLayers) + "）" : "所選圖層") +
+                        $"未找到可建牆的封閉雙線區域。請確認邊界封閉、牆厚不超過 {Info.MaxThickness} mm，且為直線輪廓。\n" +
                         Summary(stats),
                     Response = stats
                 };
@@ -126,7 +188,7 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 .GroupBy(l => l.Elevation).Select(g => g.First()).ToList() : new List<Level> { bottom, top };
             stories[0] = bottom; stories[stories.Count - 1] = top;
 
-            using (var transaction = new Transaction(doc, "自動建牆"))
+            using (var transaction = new Transaction(doc, "自動建牆" + (Info.PlaceOpenings ? "、門窗" : "") + (Info.PlaceColumns ? "、柱" : "") + (Info.PlaceFloors ? "、樓板" : "")))
             {
                 // 略過警告（例如牆重疊），避免跳出對話框卡住 MCP 呼叫。
                 var warnings = new WarningSwallower();
@@ -135,9 +197,13 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 transaction.SetFailureHandlingOptions(failureOptions);
                 transaction.Start();
                 var created = new List<Wall>();
+                // 基準樓層的牆與其中心線，門窗放在這些牆上
+                var hosts = new List<Tuple<WallRegionGeometry.Segment, Wall>>();
                 for (int i = 0; i < stories.Count - 1; i++)
-                    foreach (var s in centerLines)
+                    foreach (var c in centerLines)
                     {
+                        var s = c.Item1;
+                        WallType type = fixedType ?? ClosestType(basicTypes, c.Item2);
                         using (var step = new SubTransaction(doc))
                         {
                             step.Start();
@@ -150,6 +216,9 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                                 wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE).Set(stories[i + 1].Id);
                                 step.Commit();
                                 created.Add(wall);
+                                if (i == 0) hosts.Add(Tuple.Create(s, wall));
+                                stats.WallTypeCounts[type.Name] = (stats.WallTypeCounts.TryGetValue(type.Name, out int n) ? n : 0) + 1;
+                                if (autoType && (c.Item2 <= 0 || Math.Abs(type.Width - c.Item2) > 10 / 304.8)) stats.ThicknessMismatches++;
                             }
                             catch (Exception ex)
                             {
@@ -158,6 +227,36 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                             }
                         }
                     }
+                if (openingList.Count > 0)
+                {
+                    doc.Regenerate();
+                    new OpeningPlacer(doc, bottom, stats).Place(openingList, hosts, Info.WindowSillHeight);
+                }
+                if (columns.Count > 0)
+                {
+                    var placer = new StructurePlacer(doc, stats.StructureNotes);
+                    stats.ColumnsPlaced = placer.PlaceColumns(columns, bottom, top).Count;
+                    foreach (var p in placer.TypeCounts) stats.StructureTypeCounts[p.Key] = p.Value;
+                    stats.CreatedStructureTypes.AddRange(placer.CreatedTypes);
+                    stats.Errors.AddRange(placer.Errors.Take(Math.Max(0, 5 - stats.Errors.Count)));
+                    if (placer.Failed > 0) stats.StructureNotes.Add($"柱放置失敗 {placer.Failed} 處。");
+                }
+                if (Info.PlaceFloors && stats.CreatedCount + created.Count > 0)
+                {
+                    var floorType = FindFloorType(doc);
+                    if (floorType == null) stats.StructureNotes.Add("找不到樓板類型，未建立樓板。");
+                    else
+                    {
+                        stats.FloorType = floorType.Name;
+                        var builder = new FloorBuilder();
+                        builder.Build(doc, bottom, floorType, allLines);
+                        stats.FloorsCreated = builder.Created;
+                        stats.FloorsSkippedShafts = builder.SkippedShafts;
+                        stats.FloorsSkippedStairs = builder.SkippedStairs;
+                        stats.FloorFailures = builder.Failed;
+                        stats.Errors.AddRange(builder.Errors.Take(Math.Max(0, 5 - stats.Errors.Count)));
+                    }
+                }
                 if (transaction.Commit() != TransactionStatus.Committed)
                     return Fail("建牆交易未成功提交，請檢查 Revit 的錯誤訊息。");
                 stats.SuppressedWarnings = warnings.Count;
@@ -165,7 +264,36 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
                 stats.CreatedCount = stats.WallIds.Count;
             }
 
-            string message = $"已生成 {stats.CreatedCount} 道牆（{type.Name}，{bottom.Name} → {top.Name}）。\n" + Summary(stats);
+            string message = $"已生成 {stats.CreatedCount} 道牆（{bottom.Name} → {top.Name}；" +
+                string.Join("、", stats.WallTypeCounts.Select(p => $"{p.Key} {p.Value} 道")) + "）。\n" +
+                $"使用圖層{(autoLayers ? "（自動判定）" : "")}：{string.Join("、", stats.UsedLayers)}\n" + Summary(stats);
+            if (Info.PlaceOpenings)
+            {
+                message += $"\n門窗：單開門 {stats.DoorsPlaced}、雙開門 {stats.DoubleDoorsPlaced}、推拉門 {stats.SlidingDoorsPlaced}、窗 {stats.WindowsPlaced}" +
+                    (stats.OpeningTypeCounts.Count == 0 ? "" : "（" + string.Join("、", stats.OpeningTypeCounts.Select(p => $"{p.Key} {p.Value}")) + "）");
+                if (stats.CreatedOpeningTypes.Count > 0) message += "\n為符合 CAD 開口寬度新建類型：" + string.Join("、", stats.CreatedOpeningTypes);
+                if (stats.SlidingDoorsPlaced > 0 && !stats.OpeningTypeCounts.Keys.Any(k => k.IndexOf("推拉", StringComparison.Ordinal) >= 0 || k.IndexOf("Sliding", StringComparison.OrdinalIgnoreCase) >= 0))
+                    message += "\n專案沒有推拉門族群，推拉門以一般門放置，請替換族群。";
+                if (stats.UnknownOpenings.Count > 0) message += $"\n無法判斷門窗的牆缺口 {stats.UnknownOpenings.Count} 處（未放置）：" + string.Join("；", stats.UnknownOpenings.Take(10));
+                if (stats.OpeningFailures > 0) message += $"\n門窗放置失敗 {stats.OpeningFailures} 處（找不到宿主牆或門窗族群）。";
+                if (stats.OrientationNote != null) message += "\n" + stats.OrientationNote;
+                if (Info.ByLevel && stories.Count > 2) message += "\n門窗只放在基準樓層的牆上。";
+            }
+            if (Info.PlaceColumns)
+                message += stats.ColumnLayers.Count == 0 ? "\n結構柱：找不到柱圖層，未放置（可指定 columnLayers）。" :
+                    $"\n結構柱 {stats.ColumnsPlaced} 支（圖層：{string.Join("、", stats.ColumnLayers)}）";
+            if (Info.PlaceFloors && stats.FloorType != null)
+            {
+                message += $"\n樓板 {stats.FloorsCreated} 塊（{stats.FloorType}，每個房間一塊、邊界在牆柱內緣）";
+                if (stats.FloorsSkippedShafts + stats.FloorsSkippedStairs > 0)
+                    message += $"；略過電梯井／管道間 {stats.FloorsSkippedShafts}、樓梯 {stats.FloorsSkippedStairs} 處";
+                if (stats.FloorFailures > 0) message += $"；失敗 {stats.FloorFailures} 處";
+            }
+            if (stats.StructureTypeCounts.Count > 0) message += "\n柱類型：" + string.Join("、", stats.StructureTypeCounts.Select(p => $"{p.Key} {p.Value}"));
+            if (stats.CreatedStructureTypes.Count > 0) message += "\n新建類型：" + string.Join("、", stats.CreatedStructureTypes);
+            foreach (var note in stats.StructureNotes) message += "\n" + note;
+            if (stats.ThicknessMismatches > 0)
+                message += $"\n有 {stats.ThicknessMismatches} 道牆找不到厚度相符（±10 mm）的牆類型，已使用最接近的類型，請檢查。";
             if (missing.Count > 0) message += "\n找不到的圖層：" + string.Join("、", missing);
             return new ExtensionResult<CadWallCreationResult> { Success = stats.CreatedCount > 0, Message = message, Response = stats };
         }
@@ -178,6 +306,21 @@ namespace Sinotech.Revit.Extensions.AutoBuild.Services
             }
             return new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>()
                 .FirstOrDefault(t => t.Name == Info.WallTypeName);
+        }
+
+        private FloorType FindFloorType(Document doc)
+        {
+            var types = new FilteredElementCollector(doc).OfClass(typeof(FloorType)).Cast<FloorType>().Where(t => !t.IsFoundationSlab).ToList();
+            if (!string.IsNullOrWhiteSpace(Info.FloorTypeName)) return types.FirstOrDefault(t => t.Name == Info.FloorTypeName);
+            var id = doc.GetDefaultElementTypeId(ElementTypeGroup.FloorType);
+            return types.FirstOrDefault(t => t.Id == id) ?? types.FirstOrDefault();
+        }
+
+        private static WallType ClosestType(List<WallType> types, double width)
+        {
+            // 無法判定牆厚時（0）以 200 mm 一般牆厚為準
+            double target = width > 0 ? width : 200 / 304.8;
+            return types.OrderBy(t => Math.Abs(t.Width - target)).ThenBy(t => t.Name).First();
         }
 
         private static string Summary(CadWallCreationResult s)
